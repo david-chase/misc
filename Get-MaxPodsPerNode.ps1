@@ -1,27 +1,21 @@
-#-------------------------------------------------------------------
-#  Get-MaxPodsPerNode v1
-#  Passed a node name, returns the MaxPodsPerNode
-#-------------------------------------------------------------------
-
-Param
-(
-    [string]$node = "<none>",
-    [string]$n = "<none>"
-) 
+param (
+    [string]$namespace,
+    [string]$n
+ )
 
 Write-Host ""
-Write-Host ::: Get-MaxPodsPerNode ::: -ForegroundColor Cyan
-Write-Host ""
+Write-Host ::: Get-MaxPodsPerNode v2 ::: -ForegroundColor Cyan
+# Write-Host ""
 
-# Check if user specified -n instead of -node
-if( ( $node -eq "<none>" ) -and ( $n -ne "<none>" ) ) {
-    $node = $n
-} # if( ( $node -eq "<none>" ) -and ( $n -ne "<none>" ) ) {
-
-# No node name was specified, prompt for one
-if( $node -eq "<none>" ) {
-    kubectl get nodes
-    $node = Read-Host -Prompt "Type the name of the node: "
+$sRawOutput = kubectl get no
+$aNodes = @()
+# Write-Host $sRawOutput.Length
+for( $i = 1; $i -le ( $sRawOutput.Length - 1 ); $i++ ) {
+    $aNodes += [PSCustomObject]@{ node = $sRawOutput[ $i ].Split( " " )[ 0 ]; maxpods = "" }
 }
 
-kubectl get node $node -ojsonpath='{.status.capacity.pods}'
+foreach( $oNode in $aNodes) {
+    $sRawOutput = kubectl get node ( $oNode.node ) -ojsonpath='{.status.capacity.pods}'
+    $oNode.maxpods = $sRawOutput
+} # foreach( $oNode in $aNodes)
+$aNodes | Out-Host
