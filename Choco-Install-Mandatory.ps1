@@ -41,7 +41,8 @@ ForEach ( $pkg in $packageList ) {
     $pkgName = $pkg.PackageName
 
     # Check if package is installed
-    $installed = choco list --local-only --exact $pkgName | Select-String "^$pkgName"
+    $installedInfo = choco list --local-only --exact $pkgName --limit-output 2>$null
+    $installed = $installedInfo -match "^$pkgName\|"
 
     If ( -Not $installed ) {
         Add-Log -Tags "#choco#packages" -Text ( "Installing package " + $pkgName )
@@ -60,7 +61,5 @@ ForEach ( $pkg in $packageList ) {
         Else {
             Write-Host "Package '$pkgName' is already up to date."
         } # END else (up-to-date)
-        
     } # END else (installed)
-    
 } # END foreach ( $pkg in $packageList )
