@@ -31,7 +31,7 @@ if( $m -eq "" ) {
 Push-Location $folder
 
 Add-Log -Tags "#dev#git" -Text ( "Git pull folder " + $folder )
-Start-Process $sGitCommand -NoNewWindow -Wait -ArgumentList "pull origin master"
+Start-Process $sGitCommand -NoNewWindow -Wait -ArgumentList "pull origin main"
 
 Add-Log -Tags "#dev#git" -Text ( "Git commit and push of folder " + $folder ) 
 Start-Process $sGitCommand -NoNewWindow -Wait -ArgumentList "add *" 
