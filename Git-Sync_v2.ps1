@@ -4,7 +4,11 @@ param (
 )
 
 Write-Host ""
+<<<<<<< HEAD
 Write-Host " ::: Git Sync v2 :::" -ForegroundColor Cyan
+=======
+Write-Host "::: Git Sync v2 :::" -ForegroundColor Cyan
+>>>>>>> 82340120c6e1130cb66ba05168bd87f206e96d3e
 Write-Host ""
 
 # Remember original directory
@@ -86,6 +90,7 @@ function Sync-GitRepo {
     # Check if remote is under allowed GitHub accounts
     $remoteUrl = git config --get remote.origin.url
     if ( $remoteUrl -match "github\.com/(david-chase|dbc13543)/" ) {
+<<<<<<< HEAD
         # Check for uncommitted changes
         $status = git status --porcelain
         if ($status) {
@@ -104,6 +109,18 @@ function Sync-GitRepo {
     Write-Host "Sync completed for $Path"
     Add-Log -Tags "#git#sync" -Text "Sync completed for $Path"
 } # END function Sync-GitRepo
+=======
+        Write-Host "Pushing local changes to remote"
+        Add-Log -Tags "#git#sync" -Text "Pushing changes for $Path"
+        git push origin $currentBranch
+    } else {
+        Write-Host "Skipping push for $Path because remote is not an allowed GitHub account" -ForegroundColor Yellow
+    }
+
+    Write-Host "Sync completed for $Path"
+    Add-Log -Tags "#git#sync" -Text "Sync completed for $Path"
+    } # END function Sync-GitRepo
+>>>>>>> 82340120c6e1130cb66ba05168bd87f206e96d3e
 
 if ( $All ) {
     Add-Log -Tags "#git#sync" -Text "Syncing all directories in $(Get-Location)"
