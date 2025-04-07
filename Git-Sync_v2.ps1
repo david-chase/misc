@@ -49,6 +49,28 @@ function Sync-GitRepo {
         } # END if ( match )
     } # END try-catch
 
+    # Detect and update remote URL if needed
+    $remoteName = "origin"
+    $remoteUrl = git remote get-url $remoteName
+    try {
+        $response = Invoke-WebRequest -Uri $remoteUrl -Method Head -UseBasicParsing -ErrorAction Stop
+    } catch {
+        Add-Log -Tags "#git#sync" -Text "Remote '$remoteUrl' is unreachable. Attempting to locate updated remote URL for '$Path'"
+
+        # Check git remote -v for any changed URLs (mock behavior for simplicity)
+        $alternateRemotes = git remote -v | Select-String -Pattern "^$remoteName\s+(.+)\s+\(fetch\)" | ForEach-Object { $_.Matches[0].Groups[1].Value }
+        foreach ( $alt in $alternateRemotes ) {
+            try {
+                $responseAlt = Invoke-WebRequest -Uri $alt -Method Head -UseBasicParsing -ErrorAction Stop
+                git remote set-url $remoteName $alt
+                Add-Log -Tags "#git#sync" -Text "Updated remote URL for '$Path' to: $alt"
+                break
+            } catch {
+                continue
+            } # END try-catch
+        } # END foreach
+    } # END try-catch
+
     git fetch
     Add-Log -Tags "#git#sync" -Text "Fetched remote changes for '$Path'"
 
