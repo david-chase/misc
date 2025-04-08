@@ -43,17 +43,30 @@ if ( -not ( Test-Path $env:DevFolder ) ) {
     exit 1
 } # END if ( -not ( Test-Path $env:DevFolder ) )
 
-# Determine script and CSV path
+# Determine script and CSV paths
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$csvPath = Join-Path $env:DataFiles "Git-Sync-Mandatory.csv"
+$baseCsvPath = Join-Path $env:DataFiles "Git-Sync-Mandatory.csv"
 
-if ( -not ( Test-Path $csvPath ) ) {
-    Write-Error "Required CSV file not found: $csvPath"
+# Host-specific override
+$hostName = if ( $IsLinux ) { $env:HOSTNAME } else { $env:COMPUTERNAME }
+$hostCsvName = "Git-Sync-Mandatory-$hostName.csv"
+$hostCsvPath = Join-Path $scriptDir $hostCsvName
+
+# Validate base CSV exists
+if ( -not ( Test-Path $baseCsvPath ) ) {
+    Write-Error "Required CSV file not found: $baseCsvPath"
     exit 1
-} # END if ( -not ( Test-Path $csvPath ) )
+} # END if ( -not ( Test-Path $baseCsvPath ) )
 
-# Read CSV (single-column, no header)
-$repoUrls = Get-Content -Path $csvPath | Where-Object { -not ( [string]::IsNullOrWhiteSpace( $_ ) ) } # END Where-Object
+# Read base CSV
+$repoUrls = Get-Content -Path $baseCsvPath | Where-Object { -not ( [string]::IsNullOrWhiteSpace( $_ ) ) } # END Where-Object
+
+# Append host-specific CSV if found
+if ( Test-Path $hostCsvPath ) {
+    Write-Host "`nLoading host-specific override file: $hostCsvPath"
+    $hostUrls = Get-Content -Path $hostCsvPath | Where-Object { -not ( [string]::IsNullOrWhiteSpace( $_ ) ) } # END Where-Object
+    $repoUrls += $hostUrls
+} # END if ( Test-Path $hostCsvPath )
 
 foreach ( $url in $repoUrls ) {
     $url = $url.Trim()
