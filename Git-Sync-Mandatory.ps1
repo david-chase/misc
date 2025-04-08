@@ -50,7 +50,7 @@ $baseCsvPath = Join-Path $env:DataFiles "Git-Sync-Mandatory.csv"
 # Host-specific override (use lowercase $env:HOSTNAME)
 $hostName = $env:HOSTNAME.ToLowerInvariant()
 $hostCsvName = "Git-Sync-Mandatory-$hostName.csv"
-$hostCsvPath = Join-Path $scriptDir $hostCsvName
+$hostCsvPath = Join-Path $env:DataFiles $hostCsvName
 
 # Validate base CSV exists
 if ( -not ( Test-Path $baseCsvPath ) ) {
