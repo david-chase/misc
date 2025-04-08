@@ -1,7 +1,7 @@
-# ----------------------------------------------"
-#  Git-Sync-Mandatory.ps1"
-#  Reads through a list of repos and clones them if they don't exist or syncs them if they do"
-# ----------------------------------------------"
+# ----------------------------------------------
+#  Git-Sync-Mandatory.ps1
+#  Reads through a list of repos and clones them if they don't exist or syncs them if they do
+# ----------------------------------------------
 
 Write-Host ""
 Write-Host "::: Git-Sync-Mandatory :::" -ForegroundColor Cyan
@@ -12,6 +12,9 @@ $sSharedFunctions = $env:SharedFunctions
 Push-Location $sSharedFunctions
 . "./General Functions v1.ps1"
 Pop-Location # END Pop-Location
+
+# Detect Operating System
+$isLinux = $IsWindows -eq $false
 
 # Constants for Git identity
 $defaultGitName = "David Chase"
@@ -57,6 +60,15 @@ $repoUrls = Get-Content -Path $csvPath | Where-Object { -not ( [string]::IsNullO
 
 foreach ( $url in $repoUrls ) {
     $url = $url.Trim()
+
+    # Convert HTTPS to SSH if on Linux
+    if ( $isLinux -and $url -match "^https://([^/]+)/([^/]+)/(.+?)(\.git)?$" ) {
+        $domain = $matches[1]
+        $user = $matches[2]
+        $repo = $matches[3]
+        $url = "git@${domain}:${user}/${repo}.git"
+        Write-Host "Converted to SSH: $url"
+    } # END if ( $isLinux -and $url -match ... )
 
     # Extract repo name from URL
     if ( $url -match "/([^/]+?)(\.git)?$" ) {
