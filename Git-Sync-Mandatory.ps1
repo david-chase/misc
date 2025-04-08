@@ -47,8 +47,8 @@ if ( -not ( Test-Path $env:DevFolder ) ) {
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $baseCsvPath = Join-Path $env:DataFiles "Git-Sync-Mandatory.csv"
 
-# Host-specific override
-$hostName = if ( $IsLinux ) { $env:HOSTNAME } else { $env:COMPUTERNAME }
+# Host-specific override (use lowercase $env:HOSTNAME)
+$hostName = $env:HOSTNAME.ToLowerInvariant()
 $hostCsvName = "Git-Sync-Mandatory-$hostName.csv"
 $hostCsvPath = Join-Path $scriptDir $hostCsvName
 
