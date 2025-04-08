@@ -68,6 +68,9 @@ if ( Test-Path $hostCsvPath ) {
     $repoUrls += $hostUrls
 } # END if ( Test-Path $hostCsvPath )
 
+# Remove duplicates (case-insensitive)
+$repoUrls = $repoUrls | Sort-Object { $_.ToLowerInvariant() } | Select-Object -Unique
+
 foreach ( $url in $repoUrls ) {
     $url = $url.Trim()
 
