@@ -13,9 +13,6 @@ Push-Location $sSharedFunctions
 . "./General Functions v1.ps1"
 Pop-Location # END Pop-Location
 
-# Detect Operating System
-$isLinux = $IsWindows -eq $false
-
 # Constants for Git identity
 $defaultGitName = "David Chase"
 $defaultGitEmail = "dchase@hotmail.com"
@@ -62,13 +59,13 @@ foreach ( $url in $repoUrls ) {
     $url = $url.Trim()
 
     # Convert HTTPS to SSH if on Linux
-    if ( $isLinux -and $url -match "^https://([^/]+)/([^/]+)/(.+?)(\.git)?$" ) {
+    if ( $IsLinux -and $url -match "^https://([^/]+)/([^/]+)/(.+?)(\.git)?$" ) {
         $domain = $matches[1]
         $user = $matches[2]
         $repo = $matches[3]
         $url = "git@${domain}:${user}/${repo}.git"
         Write-Host "Converted to SSH: $url"
-    } # END if ( $isLinux -and $url -match ... )
+    } # END if ( $IsLinux -and $url -match ... )
 
     # Extract repo name from URL
     if ( $url -match "/([^/]+?)(\.git)?$" ) {
