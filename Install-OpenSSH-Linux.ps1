@@ -35,10 +35,11 @@ if ( $IsLinux ) {
         Write-Host "ufw not installed, skipping firewall configuration." -ForegroundColor Yellow
     } # END if ( Get-Command ufw )
 
+    Write-Host "Setting PowerShell as the default shell for current user" -ForegroundColor Yellow
+    chsh -s /usr/bin/pwsh
+
 } else {
 
     Write-Host "This script is intended for Linux systems only." -ForegroundColor Red
 
 } # END if ( $IsLinux )
-
-Write-Host ""
