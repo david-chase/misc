@@ -50,15 +50,15 @@ if ( $IsLinux ) {
 } elseif ( $IsWindows ) {
     # Windows logic
     $os = Get-CimInstance -ClassName Win32_OperatingSystem
-    $totalMemGB = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
-    $freeMemGB = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
-    $usedMemGB = $totalMemGB - $freeMemGB
+    $totalMemGB = [math]::Round(($os.TotalVisibleMemorySize / 1MB), 1)
+    $freeMemGB = [math]::Round(($os.FreePhysicalMemory / 1MB), 1)
+    $usedMemGB = [math]::Round(($totalMemGB - $freeMemGB), 1)
     $memPercent = [math]::Round(($usedMemGB / $totalMemGB) * 100, 1)
 
     $drive = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DeviceID = 'C:'"
-    $totalDiskGB = [math]::Round($drive.Size / 1GB, 2)
-    $freeDiskGB = [math]::Round($drive.FreeSpace / 1GB, 2)
-    $usedDiskGB = $totalDiskGB - $freeDiskGB
+    $totalDiskGB = [math]::Round(($drive.Size / 1GB), 1)
+    $freeDiskGB = [math]::Round(($drive.FreeSpace / 1GB), 1)
+    $usedDiskGB = [math]::Round(($totalDiskGB - $freeDiskGB), 1)
     $diskPercent = [math]::Round(($usedDiskGB / $totalDiskGB) * 100, 1)
 }
 
