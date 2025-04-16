@@ -1,124 +1,52 @@
+
 param (
-    [string]$RepoPath = (Get-Location),
-    [switch]$All
+    [string] $RepoPath = (Get-Location)
 )
 
 Write-Host ""
-<<<<<<< HEAD
-Write-Host " ::: Git Sync v2 :::" -ForegroundColor Cyan
-=======
-Write-Host "::: Git Sync v2 :::" -ForegroundColor Cyan
->>>>>>> 82340120c6e1130cb66ba05168bd87f206e96d3e
+Write-Host "::: Git-Sync.ps1 :::" -ForegroundColor Cyan
 Write-Host ""
 
-# Remember original directory
-$startPath = Get-Location
+Write-Host "Checking Git repository at: $RepoPath"
+Write-Host ""
 
-# Include functions and parse environment variables
-$sSharedFunctions = $env:SharedFunctions
-Push-Location $sSharedFunctions
-. ".\General Functions v1.ps1"
-Pop-Location
-
-# Ensure Git is available
-if ( -not (Get-Command git -ErrorAction SilentlyContinue) ) {
-    Add-Log -Tags "#git#sync" -Text "Git not available in PATH"
-    Write-Error "Git is not installed or not available in the system PATH"
-    Set-Location -Path $startPath
+# Validate the folder exists
+if ( -Not (Test-Path -Path $RepoPath -PathType Container) ) {
+    Write-Error "The specified folder does not exist: $RepoPath"
     exit 1
-} # END if ( -not (Get-Command ...) )
+}
 
-function Sync-GitRepo {
-    param ( [string]$Path )
+# Check if it's a Git repo
+$gitDir = Join-Path -Path $RepoPath -ChildPath ".git"
+if ( -Not (Test-Path -Path $gitDir -PathType Container) ) {
+    Write-Error "The specified folder is not a Git repository: $RepoPath"
+    exit 1
+}
 
-    Write-Host "Syncing repo at $Path"
-    Add-Log -Tags "#git#sync" -Text "Starting sync for $Path"
+# Move to repo directory
+Set-Location -Path $RepoPath
 
-    if ( -not (Test-Path $Path) ) {
-        Write-Host "The specified path $Path does not exist" -ForegroundColor Yellow
-        Add-Log -Tags "#git#sync" -Text "The specified path $Path does not exist Exiting"
-                return
-    } # END if ( -not (Test-Path $Path) )
+# Pull from remote
+Write-Host "Pulling from remote..."
+git pull origin main --no-rebase
 
-    Set-Location -Path $Path
+# Stage all changes
+Write-Host "Staging changes..."
+git add -A
 
-    if ( -not (Test-Path -Path (Join-Path $Path ".git")) ) {
-        Write-Host "Skipping $Path Not a Git repository" -ForegroundColor Yellow
-        Add-Log -Tags "#git#sync" -Text "Skipping $Path Not a Git repository"
-        $global:SkippedRepos += $Path
-        return
-    } # END if ( .git folder not found )
-
-    # Try git status and capture output
-    $statusOutput = git status 2>&1
-    if ( $statusOutput -match "detected dubious ownership" ) {
-        Write-Host "Adding $Path as a safe Git directory"
-        Add-Log -Tags "#git#sync" -Text "Marking $Path as a safe Git directory"
-        git config --global --add safe.directory "$Path"
-
-        # Re-run git status to confirm it now works
-        $statusOutput = git status 2>&1
-        if ( $LASTEXITCODE -ne 0 ) {
-            Write-Error "Git status failed after safe.directory fix"
-            $global:SkippedRepos += $Path
-            return
-        }
-    } elseif ( $LASTEXITCODE -ne 0 ) {
-        Add-Log -Tags "#git#sync" -Text "Git status failed at $Path $statusOutput"
-        Write-Error "Git status failed: $statusOutput"
-        $global:SkippedRepos += $Path
-        return
-    }
-
-    git fetch
-    Add-Log -Tags "#git#sync" -Text "Fetched remote changes for $Path"
-
-    $currentBranch = git rev-parse --abbrev-ref HEAD
-
-    $localCommit = git rev-parse $currentBranch
-    $remoteCommit = git rev-parse origin/$currentBranch
-
-    if ( $localCommit -ne $remoteCommit ) {
-        Write-Host "Pulling latest changes from remote"
-        Add-Log -Tags "#git#sync" -Text "Pulling changes for $Path"
-        git pull origin $currentBranch
-    } else {
-        Write-Host "No changes to pull"
-        Add-Log -Tags "#git#sync" -Text "No remote changes to pull for $Path"
-    } # END if ( $localCommit -ne $remoteCommit )
-
-    # Check if remote is under allowed GitHub accounts
-    $remoteUrl = git config --get remote.origin.url
-    if ( $remoteUrl -match "github\.com/(david-chase|dbc13543)/" ) {
-        # Check for uncommitted changes
-        $status = git status --porcelain
-        if ($status) {
-            Write-Host "Uncommitted changes detected committing changes"
-            git add -A
-            git commit -m "Automated commit by Git Sync Script"
-        }
-
-        Write-Host "Pushing local changes to remote"
-        Add-Log -Tags "#git#sync" -Text "Pushing changes for $Path"
-        git push origin $currentBranch
-    } else {
-        Write-Host "Skipping push for $Path because remote is not an allowed GitHub account" -ForegroundColor Yellow
-    }
-
-    Write-Host "Sync completed for $Path"
-    Add-Log -Tags "#git#sync" -Text "Sync completed for $Path"
-} # END function Sync-GitRepo
-
-if ( $All ) {
-    Add-Log -Tags "#git#sync" -Text "Syncing all directories in $(Get-Location)"
-    $basePath = Get-Location
-    $folders = Get-ChildItem -Path $basePath -Directory
-    foreach ( $folder in $folders ) {
-        Sync-GitRepo -Path $folder.FullName
-    } # END foreach
+# Commit if there are changes to commit
+$hasChanges = git status --porcelain
+if ( $hasChanges ) {
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    git commit -m "Auto-sync commit on $timestamp"
+    Write-Host "Committed local changes."
 } else {
-    Sync-GitRepo -Path $RepoPath
-} # END if ( $All )
+    Write-Host "No changes to commit."
+}
 
-# Return to the original directory before exiting
-Set-Location -Path $startPath
+# Push to remote
+Write-Host "Pushing to remote..."
+git push --all
+
+Write-Host ""
+Write-Host "Sync complete for '$RepoPath'" -ForegroundColor Green
