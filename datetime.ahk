@@ -9,3 +9,7 @@ return
 FormatTime, CurrentTime,, HH:mm
 SendInput %CurrentTime%
 return
+
+^+p::
+SendInput iS2*oHM#Kr
+return
