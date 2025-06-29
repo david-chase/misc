@@ -1,4 +1,3 @@
-
 param (
     [string] $RepoPath = (Get-Location)
 )
@@ -37,8 +36,12 @@ git add -A
 # Commit if there are changes to commit
 $hasChanges = git status --porcelain
 if ( $hasChanges ) {
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    git commit -m "Auto-sync commit on $timestamp"
+    $commitMessage = Read-Host "Enter commit message (leave blank to use timestamp)"
+    if ( [string]::IsNullOrWhiteSpace($commitMessage) ) {
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $commitMessage = "Auto-sync commit on $timestamp"
+    }
+    git commit -m "$commitMessage"
     Write-Host "Committed local changes."
 } else {
     Write-Host "No changes to commit."
