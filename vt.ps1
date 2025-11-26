@@ -64,19 +64,19 @@ param (
 )
 
 # Get some values into variables
-$cCurrentpath = ( Resolve-Path ".\" ).Path + "\"
+$cCurrentpath = ( Resolve-Path ".\" ).Path + [IO.Path]::DirectorySeparatorChar
 $cTagDelimiter = "#"
 $cAllowedHashChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 # Include functions and parse environment variables
-$sTempFolder = ( Get-ChildItem -Path Env:\TEMP ).Value
+$sTempFolder = ( Get-ChildItem -Path $env:TEMP ).Value
 
 #-------------------------------------------------------------------
 # Accept a string that is a filename and return only the portion before the tags begin, trimmed of spaces
 #-------------------------------------------------------------------
 function fGetBaseName( $sI ) {
     # If the string has any "\" in it, trim all until the last one
-    if( $sI.Contains( "\" ) ) { $sI = $sI.SubString( $sI.LastIndexOf( "\" ) + 1, $sI.Length - $sI.LastIndexOf( "\" ) - 2 ) }
+    if( $sI.Contains( [IO.Path]::DirectorySeparatorChar ) ) { $sI = $sI.SubString( $sI.LastIndexOf( [IO.Path]::DirectorySeparatorChar ) + 1, $sI.Length - $sI.LastIndexOf( [IO.Path]::DirectorySeparatorChar ) - 2 ) }
     
     # If the string has a . in it, strip everything after the last dot, including the dot.
     if( $sI.Contains( "." ) ) { $sI = $sI.SubString( 0, $sI.LastIndexOf( "." ) ) }
@@ -93,7 +93,7 @@ function fGetBaseName( $sI ) {
 function fTagsFromString( $sI ) {
     $aTags = @()
     # If the string has any "\" in it, trim all until the last one
-    if( $sI.Contains( "\" ) ) { $sI = $sI.SubString( $sI.LastIndexOf( "\" ) + 1, $sI.Length - $sI.LastIndexOf( "\" ) - 2 ) }
+    if( $sI.Contains( [IO.Path]::DirectorySeparatorChar ) ) { $sI = $sI.SubString( $sI.LastIndexOf( [IO.Path]::DirectorySeparatorChar ) + 1, $sI.Length - $sI.LastIndexOf( [IO.Path]::DirectorySeparatorChar ) - 2 ) }
     
     # If the string has a . in it, strip everything after the last dot, including the dot.
     if( $sI.Contains( "." ) ) { $sI = $sI.SubString( 0, $sI.LastIndexOf( "." ) ) }
@@ -319,7 +319,7 @@ $aFiles = ForEach( $oChildItem in $aChildItems ) {
             Name = $oChildItem.Name
             Extension = $oChildItem.Extension
             Basename = $oChildItem.Name.Remove( $oChildItem.Name.IndexOf( $oChildItem.Extension ), $oChildItem.Extension.Length )
-            Qualified = [System.String]::Concat( $oChildItem.Directory, "\", $oChildItem.Name )
+            Qualified = [System.String]::Concat( $oChildItem.Directory, [IO.Path]::DirectorySeparatorChar, $oChildItem.Name )
             Directory = $oChildItem.Directory
             Tags = $aTempTags
         } #New-Object
@@ -341,7 +341,7 @@ if ( $list ) {
 
     # Check if the -browse switch was specified
     if( $browse ) { 
-        $sTempFile = $sTempFolder + "\vt-temp.txt"
+        $sTempFile = $sTempFolder + [IO.Path]::DirectorySeparatorChar + "vt-temp.txt"
         if( -not $quiet ) { Write-Host Sending output to $sTempFile file... -ForegroundColor Cyan }
         $quiet=$true
 
@@ -426,7 +426,7 @@ if( $toss ) {
     $iFilesProcessed = 0
 
     # Add a backslash to $toss if there isn't already one
-    if( $toss.Substring( $toss.Length - 1, 1 ) -ne "\" ) { $toss += "\" }
+    if( $toss.Substring( $toss.Length - 1, 1 ) -ne [IO.Path]::DirectorySeparatorChar ) { $toss += [IO.Path]::DirectorySeparatorChar }
 
     # Check that the target folder exists
     if( Test-Path -Path $toss -PathType Container ) {
@@ -490,7 +490,7 @@ if( $replace ) {
                 # The replace string was found
 
                 $sSourceFile = $oChildItem.Qualified
-                $sTargetFile = [System.String]::Concat( $oChildItem.Directory, "\", $sNewShortName )
+                $sTargetFile = [System.String]::Concat( $oChildItem.Directory, [IO.Path]::DirectorySeparatorChar, $sNewShortName )
 
                 # Check if the target filename exists
                 if( -not ( Test-Path -Path $sTargetFile -PathType Leaf ) ) {
@@ -523,7 +523,7 @@ if( $replace ) {
                     $sNewShortName = $oChildItem.Name.Replace( $aSubstitution.String1, $aSubstitution.String2 )
 
                     $sSourceFile = $oChildItem.Qualified
-                    $sTargetFile = [System.String]::Concat( $oChildItem.Directory, "\", $sNewShortName )
+                    $sTargetFile = [System.String]::Concat( $oChildItem.Directory, [IO.Path]::DirectorySeparatorChar, $sNewShortName )
 
                      # Check if the target filename exists
                     if( -not ( Test-Path -Path $sTargetFile -PathType Leaf ) ) {
@@ -652,8 +652,8 @@ if( $addtags ) {
 		if( $bTempFlag ) {
 			# If any changes were made we need to write them now
             $sTargetFile = fGetBaseName( $oChildItem.Name )
-			$sSourceFile = [System.String]::Concat( $oChildItem.Directory, "\", $oChildItem.Name )
-			$sTargetFile = [System.String]::Concat( $oChildItem.Directory, "\", $sTargetFile, " " )
+			$sSourceFile = [System.String]::Concat( $oChildItem.Directory, [IO.Path]::DirectorySeparatorChar, $oChildItem.Name )
+			$sTargetFile = [System.String]::Concat( $oChildItem.Directory, [IO.Path]::DirectorySeparatorChar, $sTargetFile, " " )
 
             # Sort the tags then append them to the target filename, followed by an extension
             [array]::sort( $oChildItem.Tags )
@@ -711,7 +711,7 @@ if( $deltags ) {
 	
 	# Loop through all the files, delete a tag if it exists
 	foreach( $oChildItem in $aFiles ) {
-		$sSourcePath = [System.String]::Concat( $oChildItem.Directory, "\" )
+		$sSourcePath = [System.String]::Concat( $oChildItem.Directory, [IO.Path]::DirectorySeparatorChar )
 		$sSourceFile = $oChildItem.Name
 		$sTargetFile = $oChildItem.Name
 		$bTempFlag = $false
@@ -771,7 +771,7 @@ if( $rewrite ) {
 	
 	# Loop through every file in the list
 	foreach( $oChildItem in $aFiles ) {
-		$sSourcePath = [System.String]::Concat( $oChildItem.Directory, "\" )
+		$sSourcePath = [System.String]::Concat( $oChildItem.Directory, [IO.Path]::DirectorySeparatorChar )
 		$sSourceFile = $oChildItem.Name
 		$sTargetFile = fGetBaseName( $oChildItem.Name )
 	
@@ -839,7 +839,7 @@ if( $bulktag ) {
 		foreach( $oChildItem in $aFiles ) {
 			
 			$bChangesMade = $false
-			$sSourcePath = [System.String]::Concat( $oChildItem.Directory, "\" )
+			$sSourcePath = [System.String]::Concat( $oChildItem.Directory, [IO.Path]::DirectorySeparatorChar )
 			$sSourceFile = $oChildItem.Name
 			$sTargetFile = $oChildItem.BaseName
 			
@@ -925,7 +925,7 @@ if( $indexfolder ) {
     $iFilesProcessed = 0
 
     # Validate the index folder
-    if ( $indexfolder.Substring( $indexfolder.Length - 1, 1 ) -ne "\" ) { $indexfolder += "\" }
+    if ( $indexfolder.Substring( $indexfolder.Length - 1, 1 ) -ne "\" ) { $indexfolder += [IO.Path]::DirectorySeparatorChar }
     # Take a shit if the index folder doesn't exist
     if ( -not ( Test-Path -Path $indexfolder -PathType Container ) ) {
         Write-Host "ERROR: Index file $indexfolder does not exist" -ForegroundColor Red
@@ -937,7 +937,7 @@ if( $indexfolder ) {
         
         # Don't do anything at all if the file has no "-" in it
         if( $oChildItem.Name.Contains( "-" ) ) {
-            $sSourcePath = [System.String]::Concat( $oChildItem.Directory, "\" )
+            $sSourcePath = [System.String]::Concat( $oChildItem.Directory, [IO.Path]::DirectorySeparatorChar )
             $sSourceFile = [System.String]::Concat( $sSourcePath, $oChildItem.Name )
             $sTargetFile = [System.String]::Concat( $sSourcePath, $oChildItem.BaseName )
 
@@ -997,7 +997,7 @@ if( $tossindex ) {
     $iFilesProcessed = 0
 
     # Validate the index folder
-    if ( $tossindex.Substring( $tossindex.Length - 1, 1 ) -ne "\" ) { $tossindex += "\" }
+    if ( $tossindex.Substring( $tossindex.Length - 1, 1 ) -ne [IO.Path]::DirectorySeparatorChar ) { $tossindex += [IO.Path]::DirectorySeparatorChar }
     # Take a shit if the index folder doesn't exist
     if ( -not ( Test-Path -Path $tossindex -PathType Container ) ) {
         Write-Host "ERROR: Index file $tossindex does not exist" -ForegroundColor Red
@@ -1009,8 +1009,8 @@ if( $tossindex ) {
 
         # Don't do anything at all if the file has no "-" in it
         if( $oChildItem.Name.Contains( "-" ) ) {
-            $sSourceFile = [System.String]::Concat( $oChildItem.Directory, "\", $oChildItem.Name )
-            $sTargetFile = $tossindex + $oChildItem.Name.Substring( 0, $oChildItem.Name.IndexOf( "-" ) ) + "\"
+            $sSourceFile = [System.String]::Concat( $oChildItem.Directory, [IO.Path]::DirectorySeparatorChar, $oChildItem.Name )
+            $sTargetFile = $tossindex + $oChildItem.Name.Substring( 0, $oChildItem.Name.IndexOf( "-" ) ) + [IO.Path]::DirectorySeparatorChar
 
             # Don't try to move the file unless the target folder exists
             if( Test-Path -Path $sTargetFile -PathType Container ) {
@@ -1063,7 +1063,7 @@ if( $tagsfromfile ) {
     foreach( $oChildItem in $aFiles ) { 
         $aTargetTags = @( fTagsFromString( $oChildItem.Name ))
         $sSourceFile = $oChildItem.Qualified
-        $sTargetFile = [System.String]::Concat( $oChildItem.Directory, "\" )
+        $sTargetFile = [System.String]::Concat( $oChildItem.Directory, [IO.Path]::DirectorySeparatorChar )
         $sTargetFile += fGetBaseName( $oChildItem.Name )
         $bChangesMade = $false
 
