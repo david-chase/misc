@@ -23,6 +23,36 @@ Push-Location $sSharedFunctions
 . ".\Tags Functions v1.ps1"
 Pop-Location
 
+# Check for help request
+if( ( $sModel -eq "/?" ) -or ( ( -not $sModel ) -and ( -not $query ) -and ( -not $any ) -and ( -not $all ) -and ( -not $none ) ) ) {
+    Write-Host ""
+    Write-Host "Get-Model.ps1 - Search, add, and modify entries in the Models database" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "USAGE:" -ForegroundColor Yellow
+    Write-Host "  Get-Model <modelname>              - Find exact match (case-insensitive)"
+    Write-Host "  Get-Model <pattern>                - Find using wildcards (* and ?)"
+    Write-Host "  Get-Model <modelname> -update      - Update an existing model"
+    Write-Host "  Get-Model <modelname> -remove      - Remove a model"
+    Write-Host ""
+    Write-Host "QUERY MODE:" -ForegroundColor Yellow
+    Write-Host "  Get-Model -query -any `"#tag1#tag2`"  - Find models with ANY of the tags"
+    Write-Host "  Get-Model -query -all `"#tag1#tag2`"  - Find models with ALL of the tags"
+    Write-Host "  Get-Model <pattern> -query -all `"#tag1#tag2`" - Combine model filter with tags"
+    Write-Host ""
+    Write-Host "WILDCARDS:" -ForegroundColor Yellow
+    Write-Host "  *  - Matches zero or more characters (e.g., 'gpt*', '*model*')"
+    Write-Host "  ?  - Matches exactly one character (e.g., 'model?', 'gpt-?')"
+    Write-Host ""
+    Write-Host "EXAMPLES:" -ForegroundColor Yellow
+    Write-Host "  Get-Model mochi-1"
+    Write-Host "  Get-Model mochi*"
+    Write-Host "  Get-Model `"*gpt*`""
+    Write-Host "  Get-Model mochi* -query -all `"#redhead#pretty`""
+    Write-Host "  Get-Model -query -any `"#fast#cheap`""
+    Write-Host ""
+    Exit
+}
+
 # Inspect command line
 if( $q ) { $query = $true }
 if( ( -not $sModel ) -and ( -not $query ) ) { Write-Host "Cannot leave model name blank unless using -query operator" -ForegroundColor Red; Exit; }
@@ -34,12 +64,11 @@ $sCollection = "Models"
 # Start building a query string
 if( $query ) {
     $sQuery = "SELECT * FROM " + $sCollection + " c WHERE "
-    if( $sModel ) { $sQuery += "CONTAINS( c.name, '" + $sModel + "', true )" }
+    $bFirstClause = $true
     
     # Process the -any operator
     if( $any ) {
-        # If there was an mode speicific then we first need to drop an AND
-        if( $sModel ) { $sQuery += " AND " } 
+        $bFirstClause = $false 
         
         $sQuery += "( "
         $aTags = $any.Split( "#" )
@@ -67,7 +96,8 @@ if( $query ) {
     if( $all ) {
 
         # If there was an -any clause then we first need to drop an AND
-        if( $any -or $sModel ) { $sQuery += " AND " }
+        if( -not $bFirstClause ) { $sQuery += " AND " }
+        $bFirstClause = $false
 
         $sQuery += "( "
         $aTags = $all.Split( "#" )
@@ -93,12 +123,37 @@ if( $query ) {
     } # END if( $all )
 
 
-} else { 
-    $sQuery = "SELECT * FROM " + $sCollection + " c WHERE c.name = '" + $sModel + "'"
+} else {
+    # Check if the model name contains wildcards (* or ?)
+    if( $sModel -match '[\*\?]' ) {
+        # Convert wildcards to regex pattern: * becomes .*, ? becomes .
+        # First escape special regex characters, then replace our escaped wildcards
+        $sRegexPattern = [regex]::Escape($sModel)
+        $sRegexPattern = $sRegexPattern -replace '\\\*', '.*' -replace '\\\?', '.'
+        $sQuery = "SELECT * FROM " + $sCollection + " c WHERE RegexMatch(c.name, '" + $sRegexPattern + "', 'i')"
+    } else {
+        # Exact match (case-insensitive)
+        $sQuery = "SELECT * FROM " + $sCollection + " c WHERE STRINGEQUALS(c.name, '" + $sModel + "', true)"
+    }
 } # END if( $query )
 
 # Query the database
 $aResults = Query-CosmosDb -EndPoint $sDBEndpoint -DBName $sDBName -Collection $sCollection -Key $sReadOnlyKey -Query $sQuery
+
+# If in query mode with a model name specified, filter results by model name
+if( $query -and $sModel ) {
+    # Check if the model name contains wildcards (* or ?)
+    if( $sModel -match '[\*\?]' ) {
+        # Convert wildcards to regex pattern
+        $sRegexPattern = [regex]::Escape($sModel)
+        $sRegexPattern = $sRegexPattern -replace '\\\*', '.*' -replace '\\\?', '.'
+        $aResults = $aResults | Where-Object { $_.name -match "^$sRegexPattern`$" }
+    } else {
+        # Exact match (case-insensitive)
+        $aResults = $aResults | Where-Object { $_.name -eq $sModel }
+    }
+} # END if( $query -and $sModel )
+
 $aResults | Select-Object -Property name, tags | Sort-Object -Property name | out-host
 Write-Host $aResults.Count matches... -ForegroundColor Cyan
 
@@ -174,6 +229,11 @@ if( $update ) {
 } # END if( $update )
 
 if( $remove ) {
+
+    # Can't do a remove if multiple matches
+    if( $aResults.Count -ne 1 ) {
+        Write-Host "Can't perform a remove when the query returns multiple records. Only 1 record must match." -ForegroundColor Red; Exit;
+    }
 
     if( ( Read-Host -Prompt "Remove model? [y/N]" ).ToUpper() -eq "Y" ) {
         
