@@ -69,7 +69,8 @@ $cTagDelimiter = "#"
 $cAllowedHashChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 # Include functions and parse environment variables
-$sTempFolder = ( Get-ChildItem -Path $env:TEMP ).Value
+# $sTempFolder = ( Get-ChildItem -Path $env:TEMP ).Value
+$sTempFolder = "." + [IO.Path]::DirectorySeparatorChar
 
 #-------------------------------------------------------------------
 # Accept a string that is a filename and return only the portion before the tags begin, trimmed of spaces
@@ -413,7 +414,7 @@ if ( $list ) {
     if( -not $quiet ) { Write-Host $aFiles.Count files -ForegroundColor Cyan }
 
     # Launch XNView if -browse is specified
-    if( $browse ) { & "C:\Program Files\XnViewMP\xnviewmp.exe" -filelist $sTempFile }
+    if( $browse ) { & "xnv" -filelist $sTempFile }
 
     # To avoid shitty conflicting command-lines, just quit now
     exit
