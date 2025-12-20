@@ -30,7 +30,10 @@ function Render-Bar {
         [int]$width = 30
     )
 
-    $filledLength = [math]::Round(($percent / 100) * $width)
+    # Cap the bar visualization at 100% while keeping the actual percentage for display
+    $barPercent = [math]::Min($percent, 100)
+    
+    $filledLength = [math]::Round(($barPercent / 100) * $width)
     $emptyLength = $width - $filledLength
 
     $barColor = if ( $percent -lt 20 ) { 'Green' } elseif ( $percent -gt 80 ) { 'Red' } else { 'White' }
