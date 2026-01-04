@@ -1,6 +1,6 @@
-
 Write-Host ""  # Blank line before script name
 Write-Host "::: Show-Nodes :::" -ForegroundColor Cyan
+Write-Host ""
 
 function Convert-CpuToMillicores ( $value ) {
     if ( $value -match 'm$' ) {
@@ -27,16 +27,23 @@ function Convert-MemToMiB ( $value ) {
 function Render-Bar {
     param (
         [double]$percent,
+        [string]$suffix,
         [int]$width = 30
     )
 
     # Cap the bar visualization at 100% while keeping the actual percentage for display
     $barPercent = [math]::Min($percent, 100)
-    
-    $filledLength = [math]::Round(($barPercent / 100) * $width)
-    $emptyLength = $width - $filledLength
 
-    $barColor = if ( $percent -lt 20 ) { 'Green' } elseif ( $percent -gt 80 ) { 'Red' } else { 'White' }
+    $filledLength = [math]::Round(($barPercent / 100) * $width)
+    $emptyLength  = $width - $filledLength
+
+    $barColor = if ( $percent -lt 20 ) {
+        'Green'
+    } elseif ( $percent -gt 80 ) {
+        'Red'
+    } else {
+        'White'
+    }
 
     $percentStr = "{0,5:N1}%" -f $percent
 
@@ -44,7 +51,8 @@ function Render-Bar {
     Write-Host "[" -NoNewline -ForegroundColor Yellow
     Write-Host ('█' * $filledLength) -NoNewline -ForegroundColor $barColor
     Write-Host ('░' * $emptyLength) -NoNewline -ForegroundColor DarkGray
-    Write-Host "]" -ForegroundColor Yellow
+    Write-Host "] " -NoNewline -ForegroundColor Yellow
+    Write-Host $suffix
 }
 
 # Fetch list of nodes
@@ -66,9 +74,9 @@ $metrics = kubectl top nodes --no-headers | ForEach-Object {
     $memUsage = [int]($memRaw -replace '[^0-9]', '')
 
     [PSCustomObject]@{
-        Name = $parts[0]
+        Name                 = $parts[0]
         CPU_Usage_millicores = $cpuUsage
-        Memory_Usage_Mi = $memUsage
+        Memory_Usage_Mi      = $memUsage
     }
 }
 
@@ -86,7 +94,7 @@ foreach ( $pod in $podList.items ) {
     $totalMem = 0
 
     $allContainers = @()
-    if ( $pod.spec.containers ) { $allContainers += $pod.spec.containers }
+    if ( $pod.spec.containers )     { $allContainers += $pod.spec.containers }
     if ( $pod.spec.initContainers ) { $allContainers += $pod.spec.initContainers }
 
     foreach ( $container in $allContainers ) {
@@ -108,6 +116,7 @@ foreach ( $pod in $podList.items ) {
     if ( $pod.spec.overhead.memory ) {
         $totalMem += Convert-MemToMiB $pod.spec.overhead.memory
     }
+
     if ( $pod.spec.overhead.cpu ) {
         $totalCpu += Convert-CpuToMillicores $pod.spec.overhead.cpu
     }
@@ -115,17 +124,17 @@ foreach ( $pod in $podList.items ) {
     if ( -not $podRequestsByNode.ContainsKey($nodeName) ) {
         $podRequestsByNode[$nodeName] = [PSCustomObject]@{
             CPU_Requests_millicores = 0
-            Memory_Requests_Mi = 0
+            Memory_Requests_Mi      = 0
         }
     }
 
     $podRequestsByNode[$nodeName].CPU_Requests_millicores += $totalCpu
-    $podRequestsByNode[$nodeName].Memory_Requests_Mi += $totalMem
+    $podRequestsByNode[$nodeName].Memory_Requests_Mi      += $totalMem
 }
 
 # Output result per node with colored bars
 foreach ( $node in $nodes.items ) {
-    $name = $node.metadata.name
+    $name        = $node.metadata.name
     $allocatable = $node.status.allocatable
 
     $allocCPU = Convert-CpuToMillicores $allocatable.cpu
@@ -137,20 +146,30 @@ foreach ( $node in $nodes.items ) {
     $cpuUsage = $metrics | Where-Object { $_.Name -eq $name } | Select-Object -ExpandProperty CPU_Usage_millicores
     $memUsage = $metrics | Where-Object { $_.Name -eq $name } | Select-Object -ExpandProperty Memory_Usage_Mi
 
-    $cpuReqPercent = if ( $allocCPU -gt 0 ) { (100 * $reqCPU / $allocCPU) } else { 0 }
-    $cpuUsagePercent = if ( $allocCPU -gt 0 ) { (100 * $cpuUsage / $allocCPU) } else { 0 }
+    $cpuReqPercent   = if ( $allocCPU -gt 0 ) { 100 * $reqCPU   / $allocCPU } else { 0 }
+    $cpuUsagePercent = if ( $allocCPU -gt 0 ) { 100 * $cpuUsage / $allocCPU } else { 0 }
 
-    $memReqPercent = if ( $allocMem -gt 0 ) { (100 * $reqMem / $allocMem) } else { 0 }
-    $memUsagePercent = if ( $allocMem -gt 0 ) { (100 * $memUsage / $allocMem) } else { 0 }
+    $memReqPercent   = if ( $allocMem -gt 0 ) { 100 * $reqMem   / $allocMem } else { 0 }
+    $memUsagePercent = if ( $allocMem -gt 0 ) { 100 * $memUsage / $allocMem } else { 0 }
+
+    $cpuReqSuffix   = "[{0:N0}m / {1:N0}m]" -f $reqCPU,   $allocCPU
+    $cpuUsageSuffix = "[{0:N0}m / {1:N0}m]" -f $cpuUsage, $allocCPU
+
+    $memReqSuffix   = "[{0:N0}Gi / {1:N0}Gi]" -f ($reqMem   / 1024), ($allocMem / 1024)
+    $memUsageSuffix = "[{0:N0}Gi / {1:N0}Gi]" -f ($memUsage / 1024), ($allocMem / 1024)
 
     Write-Host ""
     Write-Host "Node: $name" -ForegroundColor Yellow
+
     Write-Host ("{0,-20}: " -f "CPU Reserved") -NoNewline
-    Render-Bar $cpuReqPercent
+    Render-Bar $cpuReqPercent $cpuReqSuffix
+
     Write-Host ("{0,-20}: " -f "CPU Utilization") -NoNewline
-    Render-Bar $cpuUsagePercent
+    Render-Bar $cpuUsagePercent $cpuUsageSuffix
+
     Write-Host ("{0,-20}: " -f "Memory Reserved") -NoNewline
-    Render-Bar $memReqPercent
+    Render-Bar $memReqPercent $memReqSuffix
+
     Write-Host ("{0,-20}: " -f "Memory Utilization") -NoNewline
-    Render-Bar $memUsagePercent
+    Render-Bar $memUsagePercent $memUsageSuffix
 }
