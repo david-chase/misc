@@ -35,15 +35,9 @@ function Render-Bar {
     $barPercent = [math]::Min($percent, 100)
 
     $filledLength = [math]::Round(($barPercent / 100) * $width)
-    $emptyLength  = $width - $filledLength
+    $emptyLength = $width - $filledLength
 
-    $barColor = if ( $percent -lt 20 ) {
-        'Green'
-    } elseif ( $percent -gt 80 ) {
-        'Red'
-    } else {
-        'White'
-    }
+    $barColor = if ( $percent -lt 20 ) { 'Green' } elseif ( $percent -gt 80 ) { 'Red' } else { 'White' }
 
     $percentStr = "{0,5:N1}%" -f $percent
 
@@ -63,7 +57,12 @@ $metrics = kubectl top nodes --no-headers | ForEach-Object {
     $parts = $_ -split '\s+'
 
     $cpuRaw = $parts[1]
-    $memRaw = $parts[2]
+
+    # IMPORTANT:
+    # Your output has 5 columns: NAME CPU CPU% MEM MEM%
+    # Example: havana 407m 3% 11844Mi 9%
+    # So memory is column 3 (0-based), not column 2.
+    $memRaw = $parts[3]
 
     if ( $cpuRaw -match 'm$' ) {
         $cpuUsage = [int]($cpuRaw -replace 'm', '')
@@ -71,12 +70,12 @@ $metrics = kubectl top nodes --no-headers | ForEach-Object {
         $cpuUsage = [int](1000 * [double]$cpuRaw)
     }
 
-    $memUsage = [int]($memRaw -replace '[^0-9]', '')
+    $memUsage = Convert-MemToMiB $memRaw
 
     [PSCustomObject]@{
-        Name                 = $parts[0]
+        Name = $parts[0]
         CPU_Usage_millicores = $cpuUsage
-        Memory_Usage_Mi      = $memUsage
+        Memory_Usage_Mi = $memUsage
     }
 }
 
@@ -94,7 +93,7 @@ foreach ( $pod in $podList.items ) {
     $totalMem = 0
 
     $allContainers = @()
-    if ( $pod.spec.containers )     { $allContainers += $pod.spec.containers }
+    if ( $pod.spec.containers ) { $allContainers += $pod.spec.containers }
     if ( $pod.spec.initContainers ) { $allContainers += $pod.spec.initContainers }
 
     foreach ( $container in $allContainers ) {
@@ -116,7 +115,6 @@ foreach ( $pod in $podList.items ) {
     if ( $pod.spec.overhead.memory ) {
         $totalMem += Convert-MemToMiB $pod.spec.overhead.memory
     }
-
     if ( $pod.spec.overhead.cpu ) {
         $totalCpu += Convert-CpuToMillicores $pod.spec.overhead.cpu
     }
@@ -124,52 +122,104 @@ foreach ( $pod in $podList.items ) {
     if ( -not $podRequestsByNode.ContainsKey($nodeName) ) {
         $podRequestsByNode[$nodeName] = [PSCustomObject]@{
             CPU_Requests_millicores = 0
-            Memory_Requests_Mi      = 0
+            Memory_Requests_Mi = 0
         }
     }
 
     $podRequestsByNode[$nodeName].CPU_Requests_millicores += $totalCpu
-    $podRequestsByNode[$nodeName].Memory_Requests_Mi      += $totalMem
+    $podRequestsByNode[$nodeName].Memory_Requests_Mi += $totalMem
 }
+
+# Cluster totals accumulators
+$clusterAllocCPU = 0
+$clusterAllocMem = 0
+$clusterReqCPU = 0
+$clusterReqMem = 0
+$clusterUseCPU = 0
+$clusterUseMem = 0
 
 # Output result per node with colored bars
 foreach ( $node in $nodes.items ) {
-    $name        = $node.metadata.name
+    $name = $node.metadata.name
     $allocatable = $node.status.allocatable
 
     $allocCPU = Convert-CpuToMillicores $allocatable.cpu
     $allocMem = Convert-MemToMiB $allocatable.memory
 
-    $reqCPU = $podRequestsByNode[$name].CPU_Requests_millicores
-    $reqMem = $podRequestsByNode[$name].Memory_Requests_Mi
+    $reqCPU = 0
+    $reqMem = 0
+    if ( $podRequestsByNode.ContainsKey($name) ) {
+        $reqCPU = $podRequestsByNode[$name].CPU_Requests_millicores
+        $reqMem = $podRequestsByNode[$name].Memory_Requests_Mi
+    }
 
-    $cpuUsage = $metrics | Where-Object { $_.Name -eq $name } | Select-Object -ExpandProperty CPU_Usage_millicores
-    $memUsage = $metrics | Where-Object { $_.Name -eq $name } | Select-Object -ExpandProperty Memory_Usage_Mi
+    $cpuUsage = ($metrics | Where-Object { $_.Name -eq $name } | Select-Object -First 1 -ExpandProperty CPU_Usage_millicores)
+    $memUsage = ($metrics | Where-Object { $_.Name -eq $name } | Select-Object -First 1 -ExpandProperty Memory_Usage_Mi)
 
-    $cpuReqPercent   = if ( $allocCPU -gt 0 ) { 100 * $reqCPU   / $allocCPU } else { 0 }
-    $cpuUsagePercent = if ( $allocCPU -gt 0 ) { 100 * $cpuUsage / $allocCPU } else { 0 }
+    if ( $null -eq $cpuUsage ) { $cpuUsage = 0 }
+    if ( $null -eq $memUsage ) { $memUsage = 0 }
 
-    $memReqPercent   = if ( $allocMem -gt 0 ) { 100 * $reqMem   / $allocMem } else { 0 }
-    $memUsagePercent = if ( $allocMem -gt 0 ) { 100 * $memUsage / $allocMem } else { 0 }
+    # Add to cluster totals
+    $clusterAllocCPU += $allocCPU
+    $clusterAllocMem += $allocMem
+    $clusterReqCPU += $reqCPU
+    $clusterReqMem += $reqMem
+    $clusterUseCPU += $cpuUsage
+    $clusterUseMem += $memUsage
 
-    $cpuReqSuffix   = "[{0:N0}m / {1:N0}m]" -f $reqCPU,   $allocCPU
+    $cpuReqPercent = if ( $allocCPU -gt 0 ) { (100 * $reqCPU / $allocCPU) } else { 0 }
+    $cpuUsagePercent = if ( $allocCPU -gt 0 ) { (100 * $cpuUsage / $allocCPU) } else { 0 }
+
+    $memReqPercent = if ( $allocMem -gt 0 ) { (100 * $reqMem / $allocMem) } else { 0 }
+    $memUsagePercent = if ( $allocMem -gt 0 ) { (100 * $memUsage / $allocMem) } else { 0 }
+
+    $cpuReqSuffix = "[{0:N0}m / {1:N0}m]" -f $reqCPU, $allocCPU
     $cpuUsageSuffix = "[{0:N0}m / {1:N0}m]" -f $cpuUsage, $allocCPU
 
-    $memReqSuffix   = "[{0:N0}Gi / {1:N0}Gi]" -f ($reqMem   / 1024), ($allocMem / 1024)
+    $memReqSuffix = "[{0:N0}Gi / {1:N0}Gi]" -f ($reqMem / 1024), ($allocMem / 1024)
     $memUsageSuffix = "[{0:N0}Gi / {1:N0}Gi]" -f ($memUsage / 1024), ($allocMem / 1024)
 
     Write-Host ""
     Write-Host "Node: $name" -ForegroundColor Yellow
-
     Write-Host ("{0,-20}: " -f "CPU Reserved") -NoNewline
     Render-Bar $cpuReqPercent $cpuReqSuffix
-
     Write-Host ("{0,-20}: " -f "CPU Utilization") -NoNewline
     Render-Bar $cpuUsagePercent $cpuUsageSuffix
-
     Write-Host ("{0,-20}: " -f "Memory Reserved") -NoNewline
     Render-Bar $memReqPercent $memReqSuffix
-
     Write-Host ("{0,-20}: " -f "Memory Utilization") -NoNewline
     Render-Bar $memUsagePercent $memUsageSuffix
 }
+
+# Separator between node graphs and cluster totals
+Write-Host ""
+Write-Host " ---"
+Write-Host ""
+
+# ===== Cluster Aggregate =====
+Write-Host "Cluster Totals" -ForegroundColor Cyan
+
+$cpuReqPercentTotal = if ( $clusterAllocCPU -gt 0 ) { (100 * $clusterReqCPU / $clusterAllocCPU) } else { 0 }
+$cpuUsagePercentTotal = if ( $clusterAllocCPU -gt 0 ) { (100 * $clusterUseCPU / $clusterAllocCPU) } else { 0 }
+
+$memReqPercentTotal = if ( $clusterAllocMem -gt 0 ) { (100 * $clusterReqMem / $clusterAllocMem) } else { 0 }
+$memUsagePercentTotal = if ( $clusterAllocMem -gt 0 ) { (100 * $clusterUseMem / $clusterAllocMem) } else { 0 }
+
+$cpuReqSuffixTotal = "[{0:N0}m / {1:N0}m]" -f $clusterReqCPU, $clusterAllocCPU
+$cpuUsageSuffixTotal = "[{0:N0}m / {1:N0}m]" -f $clusterUseCPU, $clusterAllocCPU
+
+$memReqSuffixTotal = "[{0:N0}Gi / {1:N0}Gi]" -f ($clusterReqMem / 1024), ($clusterAllocMem / 1024)
+$memUsageSuffixTotal = "[{0:N0}Gi / {1:N0}Gi]" -f ($clusterUseMem / 1024), ($clusterAllocMem / 1024)
+
+Write-Host ("{0,-20}: " -f "CPU Reserved") -NoNewline
+Render-Bar $cpuReqPercentTotal $cpuReqSuffixTotal
+
+Write-Host ("{0,-20}: " -f "CPU Utilization") -NoNewline
+Render-Bar $cpuUsagePercentTotal $cpuUsageSuffixTotal
+
+Write-Host ("{0,-20}: " -f "Memory Reserved") -NoNewline
+Render-Bar $memReqPercentTotal $memReqSuffixTotal
+
+Write-Host ("{0,-20}: " -f "Memory Utilization") -NoNewline
+Render-Bar $memUsagePercentTotal $memUsageSuffixTotal
+Write-Host ""
