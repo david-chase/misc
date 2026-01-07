@@ -31,14 +31,11 @@ function Render-Bar {
         [int]$width = 30
     )
 
-    # Cap the bar visualization at 100% while keeping the actual percentage for display
     $barPercent = [math]::Min($percent, 100)
-
     $filledLength = [math]::Round(($barPercent / 100) * $width)
     $emptyLength = $width - $filledLength
 
     $barColor = if ( $percent -lt 20 ) { 'Green' } elseif ( $percent -gt 80 ) { 'Red' } else { 'White' }
-
     $percentStr = "{0,5:N1}%" -f $percent
 
     Write-Host "$percentStr " -NoNewline
@@ -49,19 +46,17 @@ function Render-Bar {
     Write-Host $suffix
 }
 
-# Fetch list of nodes
+# Fetch list of nodes and FILTER OUT cordoned nodes
 $nodes = kubectl get nodes -o json | ConvertFrom-Json
+$activeNodes = $nodes.items | Where-Object {
+    $_.spec.unschedulable -ne $true
+}
 
 # Fetch resource usage from metrics server
 $metrics = kubectl top nodes --no-headers | ForEach-Object {
     $parts = $_ -split '\s+'
 
     $cpuRaw = $parts[1]
-
-    # IMPORTANT:
-    # Your output has 5 columns: NAME CPU CPU% MEM MEM%
-    # Example: havana 407m 3% 11844Mi 9%
-    # So memory is column 3 (0-based), not column 2.
     $memRaw = $parts[3]
 
     if ( $cpuRaw -match 'm$' ) {
@@ -81,13 +76,13 @@ $metrics = kubectl top nodes --no-headers | ForEach-Object {
 
 # Get pod reservations (requests) for all pods
 $podList = kubectl get pods --all-namespaces -o json | ConvertFrom-Json
-
-# Group reservations by node
+$activeNodeNames = $activeNodes.metadata.name
 $podRequestsByNode = @{}
 
 foreach ( $pod in $podList.items ) {
     $nodeName = $pod.spec.nodeName
     if ( -not $nodeName ) { continue }
+    if ( $activeNodeNames -notcontains $nodeName ) { continue }
 
     $totalCpu = 0
     $totalMem = 0
@@ -97,26 +92,19 @@ foreach ( $pod in $podList.items ) {
     if ( $pod.spec.initContainers ) { $allContainers += $pod.spec.initContainers }
 
     foreach ( $container in $allContainers ) {
-        $cpuReq = 0
-        $memReq = 0
-
         if ( $container.resources.requests.cpu ) {
-            $cpuReq = Convert-CpuToMillicores $container.resources.requests.cpu
+            $totalCpu += Convert-CpuToMillicores $container.resources.requests.cpu
         }
-
         if ( $container.resources.requests.memory ) {
-            $memReq = Convert-MemToMiB $container.resources.requests.memory
+            $totalMem += Convert-MemToMiB $container.resources.requests.memory
         }
-
-        $totalCpu += $cpuReq
-        $totalMem += $memReq
     }
 
-    if ( $pod.spec.overhead.memory ) {
-        $totalMem += Convert-MemToMiB $pod.spec.overhead.memory
-    }
     if ( $pod.spec.overhead.cpu ) {
         $totalCpu += Convert-CpuToMillicores $pod.spec.overhead.cpu
+    }
+    if ( $pod.spec.overhead.memory ) {
+        $totalMem += Convert-MemToMiB $pod.spec.overhead.memory
     }
 
     if ( -not $podRequestsByNode.ContainsKey($nodeName) ) {
@@ -138,8 +126,8 @@ $clusterReqMem = 0
 $clusterUseCPU = 0
 $clusterUseMem = 0
 
-# Output result per node with colored bars
-foreach ( $node in $nodes.items ) {
+# Output per active node
+foreach ( $node in $activeNodes ) {
     $name = $node.metadata.name
     $allocatable = $node.status.allocatable
 
@@ -159,7 +147,6 @@ foreach ( $node in $nodes.items ) {
     if ( $null -eq $cpuUsage ) { $cpuUsage = 0 }
     if ( $null -eq $memUsage ) { $memUsage = 0 }
 
-    # Add to cluster totals
     $clusterAllocCPU += $allocCPU
     $clusterAllocMem += $allocMem
     $clusterReqCPU += $reqCPU
@@ -191,12 +178,10 @@ foreach ( $node in $nodes.items ) {
     Render-Bar $memUsagePercent $memUsageSuffix
 }
 
-# Separator between node graphs and cluster totals
 Write-Host ""
 Write-Host " ---"
 Write-Host ""
 
-# ===== Cluster Aggregate =====
 Write-Host "Cluster Totals" -ForegroundColor Cyan
 
 $cpuReqPercentTotal = if ( $clusterAllocCPU -gt 0 ) { (100 * $clusterReqCPU / $clusterAllocCPU) } else { 0 }
