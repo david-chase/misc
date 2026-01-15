@@ -134,14 +134,14 @@ foreach ( $node in $nodes.items ) {
     $cpuUsage = $metrics | Where-Object { $_.Name -eq $name } | Select-Object -ExpandProperty CPU_Usage_millicores
     $memUsage = $metrics | Where-Object { $_.Name -eq $name } | Select-Object -ExpandProperty Memory_Usage_Mi
 
-    $cpuReqPercent = if ( $allocCPU -gt 0 ) { (100 * $reqCPU / $allocCPU) } else { 0 }
-    $cpuUsagePercent = if ( $allocCPU -gt 0 ) { (100 * $cpuUsage / $allocCPU) } else { 0 }
+    $cpuReqPercent = if ( $allocCPU -gt 0 ) { [Math]::Min(100, (100 * $reqCPU / $allocCPU)) } else { 0 }
+    $cpuUsagePercent = if ( $allocCPU -gt 0 ) { [Math]::Min(100, (100 * $cpuUsage / $allocCPU)) } else { 0 }
 
-    $memReqPercent = if ( $allocMem -gt 0 ) { (100 * $reqMem / $allocMem) } else { 0 }
-    $memUsagePercent = if ( $allocMem -gt 0 ) { (100 * $memUsage / $allocMem) } else { 0 }
+    $memReqPercent = if ( $allocMem -gt 0 ) { [Math]::Min(100, (100 * $reqMem / $allocMem)) } else { 0 }
+    $memUsagePercent = if ( $allocMem -gt 0 ) { [Math]::Min(100, (100 * $memUsage / $allocMem)) } else { 0 }
 
     Write-Host ""
-    Write-Host "Node: $name" -ForegroundColor Yellow
+    Write-Host "Node: $name (Allocatable: $([Math]::Round( $allocCPU / 1000, 2 )) cores, $([Math]::Round( $allocMem / 1024, 2 )) GiB)" -ForegroundColor Yellow
     Write-Host ("{0,-20}: " -f "CPU Reserved") -NoNewline
     Render-Bar $cpuReqPercent
     Write-Host ("{0,-20}: " -f "CPU Utilization") -NoNewline
