@@ -23,7 +23,7 @@ if ( -Not (Test-Path -Path $gitDir -PathType Container) ) {
 }
 
 # Move to repo directory
-Set-Location -Path $RepoPath
+Push-Location -Path $RepoPath
 
 # Pull from remote
 Write-Host "Pulling from remote..."
@@ -50,6 +50,9 @@ if ( $hasChanges ) {
 # Push to remote
 Write-Host "Pushing to remote..."
 git push --all
+
+# Return to starting folder
+Pop-Location
 
 Write-Host ""
 Write-Host "Sync complete for '$RepoPath'" -ForegroundColor Green
