@@ -4,11 +4,7 @@ param (
 )
 
 Write-Host ""
-<<<<<<< HEAD
 Write-Host " ::: Git Sync v2 :::" -ForegroundColor Cyan
-=======
-Write-Host "::: Git Sync v2 :::" -ForegroundColor Cyan
->>>>>>> 82340120c6e1130cb66ba05168bd87f206e96d3e
 Write-Host ""
 
 # Remember original directory
