@@ -31,7 +31,7 @@ $sQuery = "SELECT * FROM Secrets c WHERE c.name = 'masterpassword'"
 # Query my master password
 $aMasterPassword = Query-CosmosDb -EndPoint $sDBEndpoint -DBName $sDBName -Collection $sCollection -Key $sReadOnlyKey -Query $sQuery 
 
-$sPassGenFile = $PSScriptRoot + "\Get-Password.js"
+$sPassGenFile = $PSScriptRoot + [IO.Path]::DirectorySeparatorChar + "Get-Password.js"
 
 # Now setup the main query
 $sCollection = "Passwords"
@@ -79,7 +79,9 @@ if( $aResults.Count -eq 0 ) {
         $aResults = Post-CosmosDb -EndPoint $sDBEndpoint -DBName $sDBName -Collection $sCollection -Key $sReadWriteKey -DocumentBody $sJson -PartitionKey $sSite
 
         # Now output the password
-        $sOutput = cscript.exe /nologo $sPassGenFile $aMasterPassword.value $sSite $sComplexity 
+
+        if( $IsWindows ) { $sOutput = cscript.exe /nologo $sPassGenFile $aMasterPassword.value $sSite $sComplexity }
+        if( $IsLinux ) { $sOutput = node $sPassGenFile $aMasterPassword.value $sSite $sComplexity }
 
         if( $v ) { 
             Write-Host $sOutput }
