@@ -87,7 +87,9 @@ if( $aResults.Count -eq 0 ) {
             Write-Host $sOutput }
         else {
             Write-Host "Ok" -ForegroundColor Yellow }
-        Set-Clipboard $sOutput 
+            
+        if( $IsWindows ) { Set-Clipboard $sOutput }
+        if( $IsLinux ) { wl-copy $sOutput }
 
     } # if ( ( Read-Host -Prompt "Add site? [y/N]" ).ToUpper() -eq "Y" )
 
@@ -147,8 +149,10 @@ if( $update ) {
 
 # If the password isn't "#" then just return it, otherwise pass them to JavaScript
 if( $aResults.password -eq "#" ) { 
-    $sOutput = cscript.exe /nologo $sPassGenFile $aMasterPassword.value $aResults.site $aResults.complexity 
-            
+    # $sOutput = cscript.exe /nologo $sPassGenFile $aMasterPassword.value $aResults.site $aResults.complexity 
+    if( $IsWindows ) { $sOutput = cscript.exe /nologo $sPassGenFile $aMasterPassword.value $aResults.site $aResults.complexity }
+    if( $IsLinux ) { $sOutput = node $sPassGenFile $aMasterPassword.value $aResults.site $aResults.complexity }
+
 } else { 
     $sOutput = $aResults.password
 }
@@ -158,4 +162,6 @@ if( $v ) {
     $aResults | Select-Object -Property site, account, password, complexity, comment | Out-Host }
 else {
     Write-Host "Ok" -ForegroundColor Yellow }
-Set-Clipboard $sOutput 
+
+if( $IsWindows ) { Set-Clipboard $sOutput }
+if( $IsLinux ) { wl-copy $sOutput }

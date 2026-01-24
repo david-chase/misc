@@ -284,8 +284,21 @@
 		return vars;
 	} /* getUrlVars()() */
 
-var master = WScript.arguments(0);
-var site = WScript.arguments(1);
-var passtype = WScript.arguments(2);
-WScript.Echo( getpass( master + ':' + site, passtype ) );
+var master, site, passtype;
 
+if (typeof WScript !== 'undefined') {
+    // --- Windows Script Host (cscript.exe) ---
+    master   = WScript.Arguments.Item(0);
+    site     = WScript.Arguments.Item(1);
+    passtype = WScript.Arguments.Item(2);
+    
+    WScript.Echo(getpass(master + ':' + site, passtype));
+} else if (typeof process !== 'undefined' && process.argv) {
+    // --- Node.js (Linux / macOS / Windows Node) ---
+    // index 0: node executable, index 1: script path, index 2+: arguments
+    master   = process.argv[2];
+    site     = process.argv[3];
+    passtype = process.argv[4];
+    
+    process.stdout.write(getpass(master + ':' + site, passtype) + '\n');
+}
