@@ -33,7 +33,7 @@ function Sync-GitRepo {
     if ( -not (Test-Path $Path) ) {
         Write-Host "The specified path $Path does not exist" -ForegroundColor Yellow
         Add-Log -Tags "#git#sync" -Text "The specified path $Path does not exist Exiting"
-                return
+        return
     } # END if ( -not (Test-Path $Path) )
 
     Set-Location -Path $Path
@@ -69,10 +69,10 @@ function Sync-GitRepo {
     git fetch
     Add-Log -Tags "#git#sync" -Text "Fetched remote changes for $Path"
 
-    $currentBranch = git rev-parse --abbrev-ref HEAD
+    $currentBranch = (git rev-parse --abbrev-ref HEAD).Trim()
 
-    $localCommit = git rev-parse $currentBranch
-    $remoteCommit = git rev-parse origin/$currentBranch
+    $localCommit  = (git rev-parse $currentBranch).Trim()
+    $remoteCommit = (git rev-parse origin/$currentBranch).Trim()
 
     if ( $localCommit -ne $remoteCommit ) {
         Write-Host "Pulling latest changes from remote"
@@ -83,9 +83,17 @@ function Sync-GitRepo {
         Add-Log -Tags "#git#sync" -Text "No remote changes to pull for $Path"
     } # END if ( $localCommit -ne $remoteCommit )
 
-    # Check if remote is under allowed GitHub accounts
-    $remoteUrl = git config --get remote.origin.url
-    if ( $remoteUrl -match "github\.com/(david-chase|dbc13543)/" ) {
+    # Check if remote is under allowed GitHub accounts (handles SSH + HTTPS)
+    $remoteUrl = (git config --get remote.origin.url).Trim()
+
+    $owner = $null
+    if ($remoteUrl -match 'github\.com[:/](?<owner>[^/]+)/') {
+        $owner = $Matches.owner
+    }
+
+    $allowedOwners = @('david-chase', 'dbc13543')
+
+    if ($owner -and ($allowedOwners -contains $owner)) {
         # Check for uncommitted changes
         $status = git status --porcelain
         if ($status) {
@@ -99,6 +107,7 @@ function Sync-GitRepo {
         git push origin $currentBranch
     } else {
         Write-Host "Skipping push for $Path because remote is not an allowed GitHub account" -ForegroundColor Yellow
+        Add-Log -Tags "#git#sync" -Text "Skipping push for $Path (remote owner '$owner' not in allowlist)"
     }
 
     Write-Host "Sync completed for $Path"
