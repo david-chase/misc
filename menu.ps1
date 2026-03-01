@@ -1,3 +1,8 @@
+param (
+    [Alias("q")]
+    [switch]$Quiet
+)
+
 # Define the CSV file path relative to the script location
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $csvFile = Join-Path $env:DataFiles "apps.csv"
@@ -27,9 +32,11 @@ foreach ($app in $apps) {
 # Sort the list by ShortName
 $validApps = $validApps | Sort-Object ShortName
 
-# Display the app list with only ShortName and Description
-Write-Host "`n::: PowerShell Menu :::`n" -ForegroundColor Cyan
-$validApps | Select-Object ShortName, Description | Format-Table -AutoSize
+# Display the app list only if -Quiet is NOT specified
+if (-not $Quiet) {
+    Write-Host "`n::: PowerShell Menu :::`n" -ForegroundColor Cyan
+    $validApps | Select-Object ShortName, Description | Format-Table -AutoSize
+}
 
 # Create aliases for valid applications
 foreach ($app in $validApps) {
