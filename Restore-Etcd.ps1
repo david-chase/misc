@@ -37,7 +37,7 @@ if ($Confirm -ne "y") { exit 0 }
 
 # 3. Stop Kubernetes Control Plane
 Write-Host "Moving manifests to stop API Server and etcd..." -ForegroundColor Yellow
-if (-not (Test-Path $TempManifestDir)) { New-Item -ItemType Directory -Path $TempManifestDir -Force | Out-Null }
+if (-not (Test-Path $TempManifestDir)) { sudo New-Item -ItemType Directory -Path $TempManifestDir -Force | Out-Null }
 sudo mv "$ManifestDir/kube-apiserver.yaml" "$TempManifestDir/"
 sudo mv "$ManifestDir/etcd.yaml" "$TempManifestDir/"
 
