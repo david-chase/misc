@@ -6,8 +6,6 @@ $snapshots = $rawOutput | Select-String -Pattern "\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-
 
 if (-not $snapshots) {
     Write-Host "No snapshots found or unable to parse Timeshift output."
-    Write-Host "Raw output for debugging:"
-    $rawOutput
     exit
 }
 
@@ -16,14 +14,22 @@ Write-Host "Current snapshots found:"
 $snapshots | ForEach-Object { Write-Host $_.Line }
 
 # Prompt for the number of snapshots to keep
-[int]$keepCount = Read-Host "Enter the number of recent snapshots you want to keep"
+$userInput = Read-Host "Enter the number of recent snapshots you want to keep"
+
+# Validation: Check if the input is a valid integer
+$keepCount = $userInput -as [int]
+
+if ($null -eq $keepCount) {
+    Write-Host "Error: '$userInput' is not a valid integer. Exiting."
+    exit
+}
 
 # Calculate how many need to be deleted
 $totalSnapshots = $snapshots.Count
 $deleteCount = $totalSnapshots - $keepCount
 
 if ($deleteCount -le 0) {
-    Write-Host "You are keeping all current snapshots. No action taken."
+    Write-Host "You are keeping $keepCount snapshots, which is equal to or greater than the current count ($totalSnapshots). No action taken."
     exit
 }
 
