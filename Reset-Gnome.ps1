@@ -1,0 +1,1 @@
+Write-Host "Simply run: 'sudo systemctl restart gdm' to restart the Gnome desktop" -foreground Green
