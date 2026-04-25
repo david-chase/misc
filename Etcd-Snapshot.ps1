@@ -22,15 +22,19 @@ sudo ETCDCTL_API=3 etcdctl snapshot save $SnapshotPath `
     --cert=$Cert `
     --key=$Key
 
-# Verify if snapshot was successful
+# Verify if snapshot was successful and fix permissions
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Snapshot captured successfully." -ForegroundColor Green
+    
+    # FIX: Ensure the snapshot is readable by other nodes on the network
+    Write-Host "Updating file permissions to 644..."
+    sudo chmod 644 $SnapshotPath
 } else {
     Write-Error "Failed to capture etcd snapshot."
     exit 1
 }
 
-# Cleanup: Keep only the 30 most recent snapshots
+# Cleanup: Keep only the 10 most recent snapshots (Updated to match your variable)
 $MaxSnapshots = 10
 $OldSnapshots = Get-ChildItem -Path $SnapshotDir -Filter "snapshot-*.db" | 
                 Sort-Object LastWriteTime -Descending | 
