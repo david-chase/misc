@@ -13,6 +13,8 @@ $sLogFile = $sDevFolder + [IO.Path]::DirectorySeparatorChar + "Logs" + [IO.Path]
 
 # Set maximum allowed lines for the text log
 $iLogFileLength = 2000
+# Set maximum number of Timeshift snapshots to keep
+$iBackupsToKeep = 5
 
 Add-Log -Tags "#maintenance#upgrade" -Text ( "Starting Ubuntu regular upgrade process" )
 
@@ -75,6 +77,42 @@ if (Test-Path $sLogFile) {
     Write-Host "✓ Log file optimized and truncated." -ForegroundColor Green
 } else {
     Write-Warning "Log file not found at $sLogFile. Skipping truncation."
+}
+
+# Purge Old Timeshift Snapshots
+Write-Host "`nPurging old Timeshift snapshots (Keeping most recent: $iBackupsToKeep)..." -ForegroundColor Yellow
+Add-Log -Tags "#maintenance#cleanup" -Text ( "Purging old Timeshift snapshots to keep only the top $iBackupsToKeep" )
+
+# 1. Get the list of snapshots from Timeshift.
+# Timeshift list output contains tags, device info, and timestamps in 'yyyy-MM-dd_HH-mm-ss' format.
+$sSnapshotList = sudo timeshift --list
+
+# 2. Extract lines containing valid timestamps using a regex pattern matching the Timeshift naming convention
+$sSnapshots = $sSnapshotList | Where-Object { $_ -match '\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}' } | ForEach-Object { $Matches[0] }
+
+# 3. Check if we actually have more snapshots than our threshold
+if ($sSnapshots.Count -gt $iBackupsToKeep) {
+    # Timeshift lists snapshots chronologically (oldest first). 
+    # We select from index 0 up to the surplus count to isolate the oldest snapshots.
+    $iSurplusCount = $sSnapshots.Count - $iBackupsToKeep
+    $sSnapshotsToDelete = $sSnapshots | Select-Object -First $iSurplusCount
+
+    Write-Host "Found $($sSnapshots.Count) snapshots. Removing $iSurplusCount oldest backup(s)..." -ForegroundColor Gray
+
+    foreach ($sSnapshotTag in $sSnapshotsToDelete) {
+        Write-Host "Deleting snapshot: $sSnapshotTag..." -ForegroundColor DarkGray
+        # Execute the native deletion command via sudo
+        sudo timeshift --delete --snapshot "$sSnapshotTag" | Out-Null
+        
+        if ($LASTEXITCODE -eq 0) {
+            Add-Log -Tags "#maintenance#cleanup" -Text ( "Successfully deleted Timeshift snapshot: $sSnapshotTag" )
+        } else {
+            Write-Warning "Failed to delete snapshot: $sSnapshotTag"
+        }
+    }
+    Write-Host "✓ Snapshot purge complete." -ForegroundColor Green
+} else {
+    Write-Host "✓ Snapshot count ($($sSnapshots.Count)) is within the allowed limit of $iBackupsToKeep. No deletion required." -ForegroundColor Green
 }
 
 # Check if a Reboot is Required
