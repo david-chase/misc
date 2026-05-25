@@ -13,7 +13,7 @@ Write-Host "------------------------------------------------"
 # 1. Take a Timeshift Snapshot
 Write-Host "[1/6] Creating Timeshift Snapshot..." -ForegroundColor Yellow
 # Running via sudo. If sudo needs a password, it will prompt here.
-sudo timeshift --create --comments "Automated PowerShell Maintenance Backup" --tags O
+sudo timeshift --create --comments "Automated PowerShell Maintenance Backup" --tags o
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "Timeshift snapshot failed or was skipped. Proceeding with caution..."
 } else {
