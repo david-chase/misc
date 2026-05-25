@@ -1,17 +1,19 @@
-<#
-.SYNOPSIS
-    Performs standard system maintenance on an Ubuntu 24.04 system.
-.DESCRIPTION
-    This script automates Timeshift backups, package updates (APT & Snap),
-    system cleanup, and log rotation checks using sudo for elevation.
-#>
+Write-Host 
+Write-Host ::: Update-Ubuntu ::: -ForegroundColor Cyan
+Write-Host 
 
-Write-Host "=== Starting Ubuntu System Maintenance ===" -ForegroundColor Cyan
-Write-Host "Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Gray
-Write-Host "------------------------------------------------"
+# Include functions and parse environment variables
+$sSharedFunctions = $env:SharedFunctions
+Push-Location $sSharedFunctions
+. ".\General Functions v1.ps1"
+Pop-Location
+
+Add-Log -Tags "#maintenance#upgrade" -Text ( "Starting Ubuntu regular upgrade process" )
 
 # 1. Take a Timeshift Snapshot
 Write-Host "[1/6] Creating Timeshift Snapshot..." -ForegroundColor Yellow
+Add-Log -Tags "#maintenance#upgrade" -Text ( "Taking a Timeshift snapshot" )
+
 # Running via sudo. If sudo needs a password, it will prompt here.
 sudo timeshift --create --comments "Automated PowerShell Maintenance Backup"
 if ($LASTEXITCODE -ne 0) {
@@ -22,6 +24,8 @@ if ($LASTEXITCODE -ne 0) {
 
 # 2. Update and Upgrade APT Packages
 Write-Host "`n[2/6] Updating and Upgrading APT Packages..." -ForegroundColor Yellow
+Add-Log -Tags "#maintenance#upgrade" -Text ( "Upgrading apt packages" )
+
 sudo apt-get update
 sudo apt-get dist-upgrade -y
 if ($LASTEXITCODE -eq 0) {
@@ -30,6 +34,8 @@ if ($LASTEXITCODE -eq 0) {
 
 # 3. Upgrade Snap Packages
 Write-Host "`n[3/6] Upgrading Snap Packages..." -ForegroundColor Yellow
+Add-Log -Tags "#maintenance#upgrade" -Text ( "Upgrading snap packages" )
+
 sudo snap refresh
 if ($LASTEXITCODE -eq 0) {
     Write-Host "✓ Snap packages refreshed successfully." -ForegroundColor Green
@@ -37,12 +43,16 @@ if ($LASTEXITCODE -eq 0) {
 
 # 4. Clean up Residual and Orphaned Packages
 Write-Host "`n[4/6] Cleaning up unused dependencies and package cache..." -ForegroundColor Yellow
+Add-Log -Tags "#maintenance#upgrade" -Text ( "Cleaning up unused dependencies and package cache" )
+
 sudo apt-get autoremove -y
 sudo apt-get autoclean -y
 Write-Host "✓ APT cache and dependencies cleaned." -ForegroundColor Green
 
 # 5. Rotate and Vacuum Systemd Journal Logs
 Write-Host "`n[5/6] Vacuuming systemd journal logs to free up space..." -ForegroundColor Yellow
+Add-Log -Tags "#maintenance#upgrade" -Text ( "Vacuuming systemd journal logs to free up space" )
+
 sudo journalctl --vacuum-time=14d
 Write-Host "✓ Journal logs optimized." -ForegroundColor Green
 
