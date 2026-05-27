@@ -115,6 +115,14 @@ if ($sSnapshots.Count -gt $iBackupsToKeep) {
     Write-Host "✓ Snapshot count ($($sSnapshots.Count)) is within the allowed limit of $iBackupsToKeep. No deletion required." -ForegroundColor Green
 }
 
+# Update firmware
+Write-Host "`nUpdating firmwares..." -ForegroundColor Yellow
+Add-Log -Tags "#maintenance#cleanup" -Text ( "Updating firmwares" )
+
+sudo fwupdmgr refresh
+sudo fwupdmgr get-updates
+sudo fwupdmgr update
+
 # Check if a Reboot is Required
 Write-Host "`nChecking if a system reboot is required..." -ForegroundColor Yellow
 if (Test-Path "/var/run/reboot-required") {
