@@ -488,19 +488,27 @@ if( $tagcloud ) {
 #-------------------------------------------------------------------
 # Process the -addtags command
 #-------------------------------------------------------------------
-if ($addtags) {
+#-------------------------------------------------------------------
+# Process the -addtags command
+#-------------------------------------------------------------------
+if( $addtags ) {
     $iFilesProcessed = 0
+    # Initialize a strongly-typed .NET List for addition tags
     $aAddTags = [System.Collections.Generic.List[string]]::new()
 
-    if (Test-Path -Path $addtags -PathType Leaf) {
-        $aAddTags.AddRange((Get-Content -Path $addtags))
+    # Safely unwrap and coerce individual items into strings using standard loops
+    if( Test-Path -Path $addtags -PathType Leaf ) {
+        foreach ($sTag in (Get-Content -Path $addtags)) { $aAddTags.Add($sTag) }
     } else { 
-        $aAddTags.AddRange((fTagsFromString($addtags))) 
+        foreach ($sTag in (fTagsFromString($addtags))) { $aAddTags.Add($sTag) }
     }
 	
-    if ($aAddTags.Count -le 0) {
-        if (-not $quiet) { Write-Host 'ERROR: Switch -addtags was used but no valid tags were supplied' -ForegroundColor Red }
-        exit 
+    # Error out if no tags were parsed
+    if( $aAddTags.Count -le 0 ) {
+        if( -not $quiet ) { 
+            Write-Host 'ERROR: Switch -addtags was used but no valid tags were supplied' -ForegroundColor Red
+            exit 
+        } #if
     }
 	
     foreach ($oChildItem in $aFiles) {
@@ -556,20 +564,25 @@ if ($addtags) {
 #-------------------------------------------------------------------
 # Process the -deltags command
 #-------------------------------------------------------------------
-if ($deltags) {
+if( $deltags ) {
     $iFilesProcessed = 0
+    # Initialize a strongly-typed .NET List for deletion tags
     $aDelTags = [System.Collections.Generic.List[string]]::new()
 	
-    if (Test-Path -Path $deltags -PathType Leaf) {
-        $aDelTags.AddRange((Get-Content -Path $deltags))
+    # Safely unwrap and coerce individual items into strings using standard loops
+    if( Test-Path -Path $deltags -PathType Leaf ) {
+        foreach ($sTag in (Get-Content -Path $deltags)) { $aDelTags.Add($sTag) }
     } else { 
-        $aDelTags.AddRange((fTagsFromString($deltags))) 
+        foreach ($sTag in (fTagsFromString($deltags))) { $aDelTags.Add($sTag) }
     }
 	
-    if ($aDelTags.Count -le 0) {
-        if (-not $quiet) { Write-Host 'ERROR: Switch -deltags was used but no valid tags were supplied' -ForegroundColor Red }
-        exit 
-    }
+    # Error out if no tags were parsed
+    if( $aDelTags.Count -le 0 ) {
+        if( -not $quiet ) { 
+            Write-Host 'ERROR: Switch -deltags was used but no valid tags were supplied' -ForegroundColor Red
+            exit 
+        } #if
+    } #if
 	
     foreach ($oChildItem in $aFiles) {
         $sSourcePath = [System.String]::Concat($oChildItem.Directory, [IO.Path]::DirectorySeparatorChar)
