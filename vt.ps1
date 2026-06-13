@@ -236,61 +236,73 @@ if ($notin) {
 
 $aChildItems = @(Get-ChildItem $filespec -File) 
 
-$aFiles = ForEach ($oChildItem in $aChildItems) {
-    $aTempTags = fTagsFromString($oChildItem.Name)
+# Create an array of objects that match the filespec
+$aFiles = ForEach( $oChildItem in $aChildItems ) {
+    # Parse out any tags from this filename
+    $aTempTags = fTagsFromString( $oChildItem.Name )
+
+    # Barring criteria matches, include every file in filespec in the list of objects
     $bQualifies = $true
 
-    if ($onlyuntagged -and ($aTempTags.Count -gt 0)) { $bQualifies = $false }
-    if ($onlytagged -and ($aTempTags.Count -eq 0)) { $bQualifies = $false }
+    # Set a flag if this object passes criteria
+    if( $onlyuntagged -and ( $aTempTags.Count -gt 0 ) ) { $bQualifies = $false }
+
+    if( $onlytagged -and ( $aTempTags.Count -eq 0 ) ) { $bQualifies = $false }
     
-    if ($aAndTags.Count -gt 0) { 
-        if ($aTempTags.Count -gt 0) {
-            foreach ($sTempTag in $aAndTags) { 
-                if (-not $aTempTags.Contains($sTempTag)) { $bQualifies = $false }
+    if( $aAndTags.Count -gt 0 ) { 
+        if( $aTempTags.Count -gt 0 ) {
+            foreach( $sTempTag in $aAndTags ) { 
+                if( -not $aTempTags.Contains( $sTempTag ) ) { $bQualifies = $false }
             }
         } else { $bQualifies = $false }
     }
 
-    if ($aNotTags.Count -gt 0) {
-        if ($aTempTags.Count -gt 0) {
-            foreach ($sTempTag in $aNotTags) { 
-                if ($aTempTags.Contains($sTempTag)) { $bQualifies = $false }
+    if( $aNotTags.Count -gt 0 ) {
+        if( $aTempTags.Count -gt 0 ) {
+            foreach( $sTempTag in $aNotTags ) { 
+                if( $aTempTags.Contains( $sTempTag ) ) { $bQualifies = $false }
             }
         }
     }
 
-    if ($aOrTags.Count -gt 0) {
+    if( $aOrTags.Count -gt 0 ) {
         $bWasFound = $false
-        if ($aTempTags.Count -gt 0) {
-            foreach ($sTempTag in $aOrTags) {
-                if ($aTempTags.Contains($sTempTag)) { $bWasFound = $true }
+        if( $aTempTags.Count -gt 0 ) {
+            foreach( $sTempTag in $aOrTags ) {
+                if( $aTempTags.Contains( $sTempTag ) ) { $bWasFound = $true }
             }
         }
-        if (-not $bWasFound) { $bQualifies = $false }
+        if( -not $bWasFound ) { $bQualifies = $false }
     }
     
-    if ($aNotinTags.Count -gt 0) {
+    if( $aNotinTags.Count -gt 0 ) {
         $bQualifies = $false
         $bWasFound = $true
-        if ($aTempTags.Count -gt 0) {
-            foreach ($sTempTag in $aTempTags) {
-                if ($aNotinTags -notcontains $sTempTag) { $bWasFound = $false }
-            }
-            if (-not $bWasFound) { $bQualifies = $true }
+        if( $aTempTags.Count -gt 0 ) {
+                foreach( $sTempTag in $aTempTags ) {
+                    if( -not $aNotinTags.Contains( $sTempTag ) ) { $bWasFound = $false }
+                }
+                if( -not $bWasFound ) { $bQualifies = $true }
         }
     }
 
-    if ($bQualifies) {
+    # Instantiate a new object for this file if it qualifies
+    if( $bQualifies ) {
+        # Strongly type the list to preserve .Add() and .Sort() operations downstream
+        $oTagList = [System.Collections.Generic.List[string]]::new()
+        foreach ($sTag in $aTempTags) { $oTagList.Add($sTag) }
+
         New-Object -TypeName PSObject -Property @{
-            Name = $oChildItem.Name
+            Name      = $oChildItem.Name
             Extension = $oChildItem.Extension
-            Basename = fGetBaseName($oChildItem.Name)
-            Qualified = [System.String]::Concat($oChildItem.Directory, [IO.Path]::DirectorySeparatorChar, $oChildItem.Name)
+            Basename  = fGetBaseName($oChildItem.Name)
+            Qualified = [System.String]::Concat( $oChildItem.Directory, [IO.Path]::DirectorySeparatorChar, $oChildItem.Name )
             Directory = $oChildItem.Directory
-            Tags = $aTempTags
+            Tags      = $oTagList
         }
     }
-}
+
+} #ForEach
 
 if ($aFiles.Count -eq 0) {
     if (-not $quiet) { Write-Host "No matching files found" -ForegroundColor Cyan }
