@@ -10,6 +10,21 @@ FormatTime, CurrentTime,, HH:mm
 SendInput %CurrentTime%
 return
 
-^+p::
-SendInput iS2*oHM#Kr
+^+r::
+    Loop, 6
+    {
+        ; Randomly choose between a number (0-9) or a lowercase letter (a-z)
+        Random, type, 1, 2
+        if (type = 1)
+        {
+            Random, char, 48, 57   ; ASCII codes for 0-9
+        }
+        else
+        {
+            Random, char, 97, 122  ; ASCII codes for a-z
+        }
+        String .= Chr(char)
+    }
+    SendInput, %String%
+    String := "" ; Clear the variable for the next run
 return
