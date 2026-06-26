@@ -1,4 +1,4 @@
-; Save a bunch of keystrokes for use with Obsidian tasks
+﻿; Save a bunch of keystrokes for use with Obsidian tasks
 !+m::
 SendInput {Text}🟡 MEDIUM
 return
