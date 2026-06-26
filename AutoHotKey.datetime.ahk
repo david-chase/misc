@@ -1,4 +1,4 @@
-; Press Ctrl + Shift + D to insert the formatted date (YYYY.MM.DD)
+﻿; Press Ctrl + Shift + D to insert the formatted date (YYYY.MM.DD)
 ^+d::
 FormatTime, CurrentDateTime,, yyyy.MM.dd
 SendInput %CurrentDateTime%
