@@ -1,6 +1,6 @@
-Write-Host ""  # Blank line before script name
-Write-Host "::: Show-Nodes :::" -ForegroundColor Cyan
-Write-Host ""
+param (
+    [Switch]$w
+)
 
 function Convert-CpuToMillicores ( $value ) {
     if ( $value -match 'm$' ) {
@@ -46,165 +46,192 @@ function Render-Bar {
     Write-Host $suffix
 }
 
-# Fetch list of nodes and FILTER OUT cordoned nodes
-$nodes = kubectl get nodes -o json | ConvertFrom-Json
-$activeNodes = $nodes.items | Where-Object {
-    $_.spec.unschedulable -ne $true
-}
-
-# Fetch resource usage from metrics server
-$metrics = kubectl top nodes --no-headers | ForEach-Object {
-    $parts = $_ -split '\s+'
-
-    $cpuRaw = $parts[1]
-    $memRaw = $parts[3]
-
-    if ( $cpuRaw -match 'm$' ) {
-        $cpuUsage = [int]($cpuRaw -replace 'm', '')
-    } else {
-        $cpuUsage = [int](1000 * [double]$cpuRaw)
+do {
+    # Fetch list of nodes and FILTER OUT cordoned nodes
+    $nodes = kubectl get nodes -o json | ConvertFrom-Json
+    $activeNodes = $nodes.items | Where-Object {
+        $_.spec.unschedulable -ne $true
     }
 
-    $memUsage = Convert-MemToMiB $memRaw
+    # Fetch resource usage from metrics server
+    $metrics = kubectl top nodes --no-headers | ForEach-Object {
+        $parts = $_ -split '\s+'
 
-    [PSCustomObject]@{
-        Name = $parts[0]
-        CPU_Usage_millicores = $cpuUsage
-        Memory_Usage_Mi = $memUsage
-    }
-}
+        $cpuRaw = $parts[1]
+        $memRaw = $parts[3]
 
-# Get pod reservations (requests) for all pods
-$podList = kubectl get pods --all-namespaces -o json | ConvertFrom-Json
-$activeNodeNames = $activeNodes.metadata.name
-$podRequestsByNode = @{}
-
-foreach ( $pod in $podList.items ) {
-    $nodeName = $pod.spec.nodeName
-    if ( -not $nodeName ) { continue }
-    if ( $activeNodeNames -notcontains $nodeName ) { continue }
-
-    $totalCpu = 0
-    $totalMem = 0
-
-    $allContainers = @()
-    if ( $pod.spec.containers ) { $allContainers += $pod.spec.containers }
-    if ( $pod.spec.initContainers ) { $allContainers += $pod.spec.initContainers }
-
-    foreach ( $container in $allContainers ) {
-        if ( $container.resources.requests.cpu ) {
-            $totalCpu += Convert-CpuToMillicores $container.resources.requests.cpu
+        if ( $cpuRaw -match 'm$' ) {
+            $cpuUsage = [int]($cpuRaw -replace 'm', '')
+        } else {
+            $cpuUsage = [int](1000 * [double]$cpuRaw)
         }
-        if ( $container.resources.requests.memory ) {
-            $totalMem += Convert-MemToMiB $container.resources.requests.memory
+
+        $memUsage = Convert-MemToMiB $memRaw
+
+        [PSCustomObject]@{
+            Name = $parts[0]
+            CPU_Usage_millicores = $cpuUsage
+            Memory_Usage_Mi = $memUsage
         }
     }
 
-    if ( $pod.spec.overhead.cpu ) {
-        $totalCpu += Convert-CpuToMillicores $pod.spec.overhead.cpu
-    }
-    if ( $pod.spec.overhead.memory ) {
-        $totalMem += Convert-MemToMiB $pod.spec.overhead.memory
-    }
+    # Get pod reservations (requests) for all pods
+    $podList = kubectl get pods --all-namespaces -o json | ConvertFrom-Json
+    $activeNodeNames = $activeNodes.metadata.name
+    $podRequestsByNode = @{}
 
-    if ( -not $podRequestsByNode.ContainsKey($nodeName) ) {
-        $podRequestsByNode[$nodeName] = [PSCustomObject]@{
-            CPU_Requests_millicores = 0
-            Memory_Requests_Mi = 0
+    foreach ( $pod in $podList.items ) {
+        $nodeName = $pod.spec.nodeName
+        if ( -not $nodeName ) { continue }
+        if ( $activeNodeNames -notcontains $nodeName ) { continue }
+
+        $totalCpu = 0
+        $totalMem = 0
+
+        $allContainers = @()
+        if ( $pod.spec.containers ) { $allContainers += $pod.spec.containers }
+        if ( $pod.spec.initContainers ) { $allContainers += $pod.spec.initContainers }
+
+        foreach ( $container in $allContainers ) {
+            if ( $container.resources.requests.cpu ) {
+                $totalCpu += Convert-CpuToMillicores $container.resources.requests.cpu
+            }
+            if ( $container.resources.requests.memory ) {
+                $totalMem += Convert-MemToMiB $container.resources.requests.memory
+            }
         }
+
+        if ( $pod.spec.overhead.cpu ) {
+            $totalCpu += Convert-CpuToMillicores $pod.spec.overhead.cpu
+        }
+        if ( $pod.spec.overhead.memory ) {
+            $totalMem += Convert-MemToMiB $pod.spec.overhead.memory
+        }
+
+        if ( -not $podRequestsByNode.ContainsKey($nodeName) ) {
+            $podRequestsByNode[$nodeName] = [PSCustomObject]@{
+                CPU_Requests_millicores = 0
+                Memory_Requests_Mi = 0
+            }
+        }
+
+        $podRequestsByNode[$nodeName].CPU_Requests_millicores += $totalCpu
+        $podRequestsByNode[$nodeName].Memory_Requests_Mi += $totalMem
     }
 
-    $podRequestsByNode[$nodeName].CPU_Requests_millicores += $totalCpu
-    $podRequestsByNode[$nodeName].Memory_Requests_Mi += $totalMem
-}
+    # Clear screen immediately before rendering to eliminate visual lag
+    if ($w) { Clear-Host }
 
-# Cluster totals accumulators
-$clusterAllocCPU = 0
-$clusterAllocMem = 0
-$clusterReqCPU = 0
-$clusterReqMem = 0
-$clusterUseCPU = 0
-$clusterUseMem = 0
+    Write-Host ""  # Blank line before script name
+    Write-Host "::: Show-Nodes :::" -ForegroundColor Cyan
+    Write-Host ""
 
-# Output per active node
-foreach ( $node in $activeNodes ) {
-    $name = $node.metadata.name
-    $allocatable = $node.status.allocatable
+    # Cluster totals accumulators
+    $clusterAllocCPU = 0
+    $clusterAllocMem = 0
+    $clusterReqCPU = 0
+    $clusterReqMem = 0
+    $clusterUseCPU = 0
+    $clusterUseMem = 0
 
-    $allocCPU = Convert-CpuToMillicores $allocatable.cpu
-    $allocMem = Convert-MemToMiB $allocatable.memory
+    # Output per active node
+    foreach ( $node in $activeNodes ) {
+        $name = $node.metadata.name
+        $allocatable = $node.status.allocatable
 
-    $reqCPU = 0
-    $reqMem = 0
-    if ( $podRequestsByNode.ContainsKey($name) ) {
-        $reqCPU = $podRequestsByNode[$name].CPU_Requests_millicores
-        $reqMem = $podRequestsByNode[$name].Memory_Requests_Mi
+        $allocCPU = Convert-CpuToMillicores $allocatable.cpu
+        $allocMem = Convert-MemToMiB $allocatable.memory
+
+        $reqCPU = 0
+        $reqMem = 0
+        if ( $podRequestsByNode.ContainsKey($name) ) {
+            $reqCPU = $podRequestsByNode[$name].CPU_Requests_millicores
+            $reqMem = $podRequestsByNode[$name].Memory_Requests_Mi
+        }
+
+        $cpuUsage = ($metrics | Where-Object { $_.Name -eq $name } | Select-Object -First 1 -ExpandProperty CPU_Usage_millicores)
+        $memUsage = ($metrics | Where-Object { $_.Name -eq $name } | Select-Object -First 1 -ExpandProperty Memory_Usage_Mi)
+
+        if ( $null -eq $cpuUsage ) { $cpuUsage = 0 }
+        if ( $null -eq $memUsage ) { $memUsage = 0 }
+
+        $clusterAllocCPU += $allocCPU
+        $clusterAllocMem += $allocMem
+        $clusterReqCPU += $reqCPU
+        $clusterReqMem += $reqMem
+        $clusterUseCPU += $cpuUsage
+        $clusterUseMem += $memUsage
+
+        $cpuReqPercent = if ( $allocCPU -gt 0 ) { [Math]::Min(100, (100 * $reqCPU / $allocCPU)) } else { 0 }
+        $cpuUsagePercent = if ( $allocCPU -gt 0 ) { [Math]::Min(100, (100 * $cpuUsage / $allocCPU)) } else { 0 }
+
+        $memReqPercent = if ( $allocMem -gt 0 ) { [Math]::Min(100, (100 * $reqMem / $allocMem)) } else { 0 }
+        $memUsagePercent = if ( $allocMem -gt 0 ) { [Math]::Min(100, (100 * $memUsage / $allocMem)) } else { 0 }
+
+        $cpuReqSuffix = "[{0:N0}m / {1:N0}m]" -f $reqCPU, $allocCPU
+        $cpuUsageSuffix = "[{0:N0}m / {1:N0}m]" -f $cpuUsage, $allocCPU
+
+        $memReqSuffix = "[{0:N0}Gi / {1:N0}Gi]" -f ($reqMem / 1024), ($allocMem / 1024)
+        $memUsageSuffix = "[{0:N0}Gi / {1:N0}Gi]" -f ($memUsage / 1024), ($allocMem / 1024)
+
+        Write-Host ""
+        Write-Host "Node: $name (Allocatable: $([Math]::Round( $allocCPU / 1000, 2 )) cores, $([Math]::Round( $allocMem / 1024, 2 )) GiB)" -ForegroundColor Yellow
+        Write-Host ("{0,-20}: " -f "CPU Reserved") -NoNewline
+        Render-Bar $cpuReqPercent $cpuReqSuffix
+        Write-Host ("{0,-20}: " -f "CPU Utilization") -NoNewline
+        Render-Bar $cpuUsagePercent $cpuUsageSuffix
+        Write-Host ("{0,-20}: " -f "Memory Reserved") -NoNewline
+        Render-Bar $memReqPercent $memReqSuffix
+        Write-Host ("{0,-20}: " -f "Memory Utilization") -NoNewline
+        Render-Bar $memUsagePercent $memUsageSuffix
     }
-
-    $cpuUsage = ($metrics | Where-Object { $_.Name -eq $name } | Select-Object -First 1 -ExpandProperty CPU_Usage_millicores)
-    $memUsage = ($metrics | Where-Object { $_.Name -eq $name } | Select-Object -First 1 -ExpandProperty Memory_Usage_Mi)
-
-    if ( $null -eq $cpuUsage ) { $cpuUsage = 0 }
-    if ( $null -eq $memUsage ) { $memUsage = 0 }
-
-    $clusterAllocCPU += $allocCPU
-    $clusterAllocMem += $allocMem
-    $clusterReqCPU += $reqCPU
-    $clusterReqMem += $reqMem
-    $clusterUseCPU += $cpuUsage
-    $clusterUseMem += $memUsage
-
-    $cpuReqPercent = if ( $allocCPU -gt 0 ) { [Math]::Min(100, (100 * $reqCPU / $allocCPU)) } else { 0 }
-    $cpuUsagePercent = if ( $allocCPU -gt 0 ) { [Math]::Min(100, (100 * $cpuUsage / $allocCPU)) } else { 0 }
-
-    $memReqPercent = if ( $allocMem -gt 0 ) { [Math]::Min(100, (100 * $reqMem / $allocMem)) } else { 0 }
-    $memUsagePercent = if ( $allocMem -gt 0 ) { [Math]::Min(100, (100 * $memUsage / $allocMem)) } else { 0 }
-
-    $cpuReqSuffix = "[{0:N0}m / {1:N0}m]" -f $reqCPU, $allocCPU
-    $cpuUsageSuffix = "[{0:N0}m / {1:N0}m]" -f $cpuUsage, $allocCPU
-
-    $memReqSuffix = "[{0:N0}Gi / {1:N0}Gi]" -f ($reqMem / 1024), ($allocMem / 1024)
-    $memUsageSuffix = "[{0:N0}Gi / {1:N0}Gi]" -f ($memUsage / 1024), ($allocMem / 1024)
 
     Write-Host ""
-    Write-Host "Node: $name (Allocatable: $([Math]::Round( $allocCPU / 1000, 2 )) cores, $([Math]::Round( $allocMem / 1024, 2 )) GiB)" -ForegroundColor Yellow
+    Write-Host " ---"
+    Write-Host ""
+
+    Write-Host "Cluster Totals" -ForegroundColor Cyan
+
+    $cpuReqPercentTotal = if ( $clusterAllocCPU -gt 0 ) { (100 * $clusterReqCPU / $clusterAllocCPU) } else { 0 }
+    $cpuUsagePercentTotal = if ( $clusterAllocCPU -gt 0 ) { (100 * $clusterUseCPU / $clusterAllocCPU) } else { 0 }
+
+    $memReqPercentTotal = if ( $clusterAllocMem -gt 0 ) { (100 * $clusterReqMem / $clusterAllocMem) } else { 0 }
+    $memUsagePercentTotal = if ( $clusterAllocMem -gt 0 ) { (100 * $clusterUseMem / $clusterAllocMem) } else { 0 }
+
+    $cpuReqSuffixTotal = "[{0:N0}m / {1:N0}m]" -f $clusterReqCPU, $clusterAllocCPU
+    $cpuUsageSuffixTotal = "[{0:N0}m / {1:N0}m]" -f $clusterUseCPU, $clusterAllocCPU
+
+    $memReqSuffixTotal = "[{0:N0}Gi / {1:N0}Gi]" -f ($clusterReqMem / 1024), ($clusterAllocMem / 1024)
+    $memUsageSuffixTotal = "[{0:N0}Gi / {1:N0}Gi]" -f ($clusterUseMem / 1024), ($clusterAllocMem / 1024)
+
     Write-Host ("{0,-20}: " -f "CPU Reserved") -NoNewline
-    Render-Bar $cpuReqPercent $cpuReqSuffix
+    Render-Bar $cpuReqPercentTotal $cpuReqSuffixTotal
+
     Write-Host ("{0,-20}: " -f "CPU Utilization") -NoNewline
-    Render-Bar $cpuUsagePercent $cpuUsageSuffix
+    Render-Bar $cpuUsagePercentTotal $cpuUsageSuffixTotal
+
     Write-Host ("{0,-20}: " -f "Memory Reserved") -NoNewline
-    Render-Bar $memReqPercent $memReqSuffix
+    Render-Bar $memReqPercentTotal $memReqSuffixTotal
+
     Write-Host ("{0,-20}: " -f "Memory Utilization") -NoNewline
-    Render-Bar $memUsagePercent $memUsageSuffix
-}
+    Render-Bar $memUsagePercentTotal $memUsageSuffixTotal
+    Write-Host ""
 
-Write-Host ""
-Write-Host " ---"
-Write-Host ""
+    # Handle the watch loop logic and display exit text at the bottom
+    if ($w) {
+        Write-Host "(Press 'Esc' or 'q' to quit)" -ForegroundColor DarkGray
+        Write-Host ""
 
-Write-Host "Cluster Totals" -ForegroundColor Cyan
-
-$cpuReqPercentTotal = if ( $clusterAllocCPU -gt 0 ) { (100 * $clusterReqCPU / $clusterAllocCPU) } else { 0 }
-$cpuUsagePercentTotal = if ( $clusterAllocCPU -gt 0 ) { (100 * $clusterUseCPU / $clusterAllocCPU) } else { 0 }
-
-$memReqPercentTotal = if ( $clusterAllocMem -gt 0 ) { (100 * $clusterReqMem / $clusterAllocMem) } else { 0 }
-$memUsagePercentTotal = if ( $clusterAllocMem -gt 0 ) { (100 * $clusterUseMem / $clusterAllocMem) } else { 0 }
-
-$cpuReqSuffixTotal = "[{0:N0}m / {1:N0}m]" -f $clusterReqCPU, $clusterAllocCPU
-$cpuUsageSuffixTotal = "[{0:N0}m / {1:N0}m]" -f $clusterUseCPU, $clusterAllocCPU
-
-$memReqSuffixTotal = "[{0:N0}Gi / {1:N0}Gi]" -f ($clusterReqMem / 1024), ($clusterAllocMem / 1024)
-$memUsageSuffixTotal = "[{0:N0}Gi / {1:N0}Gi]" -f ($clusterUseMem / 1024), ($clusterAllocMem / 1024)
-
-Write-Host ("{0,-20}: " -f "CPU Reserved") -NoNewline
-Render-Bar $cpuReqPercentTotal $cpuReqSuffixTotal
-
-Write-Host ("{0,-20}: " -f "CPU Utilization") -NoNewline
-Render-Bar $cpuUsagePercentTotal $cpuUsageSuffixTotal
-
-Write-Host ("{0,-20}: " -f "Memory Reserved") -NoNewline
-Render-Bar $memReqPercentTotal $memReqSuffixTotal
-
-Write-Host ("{0,-20}: " -f "Memory Utilization") -NoNewline
-Render-Bar $memUsagePercentTotal $memUsageSuffixTotal
-Write-Host ""
+        $quit = $false
+        for ($i = 0; $i -lt 100; $i++) {
+            if ([Console]::KeyAvailable) {
+                $key = [Console]::ReadKey($true)
+                if ($key.Key -eq 'Escape' -or $key.KeyChar -eq 'q') {
+                    $quit = $true
+                    break
+                }
+            }
+            Start-Sleep -Milliseconds 100
+        }
+    }
+} while ($w -and -not $quit)
