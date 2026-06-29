@@ -43,21 +43,36 @@ if ( -not ( Test-Path $env:DevFolder ) ) {
     exit 1
 } 
 
-# Determine script and CSV path
+# Determine script and CSV paths
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$csvPath = Join-Path $env:DataFiles "Git-Sync-Mandatory.csv"
+$defaultCsvPath = Join-Path $env:DataFiles "Git-Sync-Mandatory.csv"
+$computerCsvPath = Join-Path $env:DataFiles "Git-Sync-Mandatory-$env:COMPUTERNAME.csv"
 
-if ( -not ( Test-Path $csvPath ) ) {
-    Write-Error "Required CSV file not found: $csvPath"
+$rawUrls = @()
+
+# Load default CSV if it exists
+if ( Test-Path $defaultCsvPath ) {
+    $rawUrls += Get-Content -Path $defaultCsvPath
+}
+
+# Load computer-specific CSV if it exists (Case-insensitive by default in Windows/PowerShell)
+if ( Test-Path $computerCsvPath ) {
+    Write-Host "Found computer-specific repo list: Git-Sync-Mandatory-$env:COMPUTERNAME.csv" -ForegroundColor Cyan
+    $rawUrls += Get-Content -Path $computerCsvPath
+}
+
+# Clean whitespace, filter blanks, and remove duplicate repositories
+$repoUrls = $rawUrls | 
+    Where-Object { -not ( [string]::IsNullOrWhiteSpace( $_ ) ) } | 
+    ForEach-Object { $_.Trim() } | 
+    Select-Object -Unique
+
+if ( $repoUrls.Count -eq 0 ) {
+    Write-Error "No repository URLs found. Ensure at least one valid CSV file exists and contains data."
     exit 1
-} 
+}
 
-# Read CSV (single-column, no header)
-$repoUrls = Get-Content -Path $csvPath | Where-Object { -not ( [string]::IsNullOrWhiteSpace( $_ ) ) } 
-
-foreach ( $line in $repoUrls ) {
-    $url = $line.Trim()
-
+foreach ( $url in $repoUrls ) {
     # Extract repo name from URL
     if ( $url -match "/([^/]+?)(\.git)?$" ) {
         $repoName = $matches[1]
