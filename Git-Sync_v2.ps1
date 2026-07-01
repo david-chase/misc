@@ -9,7 +9,6 @@ Write-Host "::: Git-Sync.ps1 :::" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "Checking Git repository at: $RepoPath" -ForegroundColor Green
-Write-Host ""
 
 # Validate the folder exists
 if ( -Not (Test-Path -Path $RepoPath -PathType Container) ) {
@@ -35,7 +34,6 @@ try {
         exit 1
     }
     Write-Host "Current branch: $branch" -ForegroundColor Green
-    Write-Host ""
 
     # Pull from remote
     Write-Host "Pulling from remote..." -ForegroundColor Green
@@ -79,7 +77,6 @@ try {
         exit 1
     }
 
-    Write-Host ""
     Write-Host "Sync complete for '$RepoPath' on branch '$branch'" -ForegroundColor Green
 }
 finally {
