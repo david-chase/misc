@@ -8,7 +8,7 @@ Write-Host ""
 Write-Host "::: Git-Sync.ps1 :::" -ForegroundColor Cyan
 Write-Host ""
 
-Write-Host "Checking Git repository at: $RepoPath"
+Write-Host "Checking Git repository at: $RepoPath" -ForegroundColor Green
 Write-Host ""
 
 # Validate the folder exists
@@ -34,11 +34,11 @@ try {
         Write-Error "Could not determine current branch."
         exit 1
     }
-    Write-Host "Current branch: $branch"
+    Write-Host "Current branch: $branch" -ForegroundColor Green
     Write-Host ""
 
     # Pull from remote
-    Write-Host "Pulling from remote..."
+    Write-Host "Pulling from remote..." -ForegroundColor Green
     git pull origin $branch --no-rebase
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Pull failed. Resolve conflicts manually, then re-run this script."
@@ -46,7 +46,7 @@ try {
     }
 
     # Stage all changes
-    Write-Host "Staging changes..."
+    Write-Host "Staging changes..." -ForegroundColor Green
     git add -A
 
     # Commit if there are changes to commit
@@ -66,13 +66,13 @@ try {
             Write-Error "Commit failed."
             exit 1
         }
-        Write-Host "Committed local changes."
+        Write-Host "Committed local changes." -ForegroundColor Green
     } else {
-        Write-Host "No changes to commit."
+        Write-Host "No changes to commit." -ForegroundColor Green
     }
 
     # Push current branch to remote
-    Write-Host "Pushing to remote..."
+    Write-Host "Pushing to remote..." -ForegroundColor Green
     git push origin $branch
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Push failed."
