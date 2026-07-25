@@ -13,6 +13,9 @@ Param
     [switch]$v = $false
 )
 
+Write-Host
+Write-Host ::: Get-Password ::: -ForegroundColor Cyan
+Write-Host
 
 # Include functions and parse environment variables
 $sSharedFunctions = $env:SharedFunctions
@@ -20,6 +23,37 @@ Push-Location $sSharedFunctions
 . ".\General Functions v1.ps1"
 . ".\CosmosDB Functions v2.ps1"
 Pop-Location
+
+# Outputs the result, and copies the rendered password to the clipboard.
+# In verbose mode, shows the underlying record plus the rendered password.
+function Write-PasswordResult {
+    Param
+    (
+        [ Parameter( Mandatory = $true ) ] $oResult,
+        [ Parameter( Mandatory = $true ) ] [string] $sRenderedPassword
+    )
+
+    if( $v ) {
+        Write-Host
+        Write-Host "Site       : " -ForegroundColor Yellow -NoNewline
+        Write-Host $oResult.site -ForegroundColor Green
+        Write-Host "Password   : " -ForegroundColor Yellow -NoNewline
+        Write-Host $oResult.password -ForegroundColor Green
+        Write-Host "Complexity : " -ForegroundColor Yellow -NoNewline
+        Write-Host $oResult.complexity -ForegroundColor Green
+        Write-Host "Comment    : " -ForegroundColor Yellow -NoNewline
+        Write-Host $oResult.comment -ForegroundColor Green
+        Write-Host "Rendered   : " -ForegroundColor Yellow -NoNewline
+        Write-Host $sRenderedPassword -ForegroundColor Green
+        Write-Host
+    } else {
+        Write-Host "Ok" -ForegroundColor Yellow
+    }
+
+    if( $IsWindows ) { Set-Clipboard $sRenderedPassword }
+    if( $IsLinux )   { wl-copy $sRenderedPassword }
+
+} # END function Write-PasswordResult
 
 # Do some command line parsing
 if( $q ) { $query = $true }
@@ -83,13 +117,7 @@ if( $aResults.Count -eq 0 ) {
         if( $IsWindows ) { $sOutput = cscript.exe /nologo $sPassGenFile $aMasterPassword.value $sSite $sComplexity }
         if( $IsLinux ) { $sOutput = node $sPassGenFile $aMasterPassword.value $sSite $sComplexity }
 
-        if( $v ) { 
-            Write-Host $sOutput }
-        else {
-            Write-Host "Ok" -ForegroundColor Yellow }
-            
-        if( $IsWindows ) { Set-Clipboard $sOutput }
-        if( $IsLinux ) { wl-copy $sOutput }
+        Write-PasswordResult -oResult $aResults -sRenderedPassword $sOutput
 
     } # if ( ( Read-Host -Prompt "Add site? [y/N]" ).ToUpper() -eq "Y" )
 
@@ -113,7 +141,7 @@ if( $remove ) {
 
 if( $update ) {
     # User wants to update the password
-    Write-Host Updating record $sSitedavi -ForegroundColor Cyan
+    Write-Host Updating record $sSite -ForegroundColor Cyan
     $sId = $aResults.id
     $sTempAccount = $aResults.account
     $sTempPassword = $aResults.password
@@ -149,7 +177,6 @@ if( $update ) {
 
 # If the password isn't "#" then just return it, otherwise pass them to JavaScript
 if( $aResults.password -eq "#" ) { 
-    # $sOutput = cscript.exe /nologo $sPassGenFile $aMasterPassword.value $aResults.site $aResults.complexity 
     if( $IsWindows ) { $sOutput = cscript.exe /nologo $sPassGenFile $aMasterPassword.value $aResults.site $aResults.complexity }
     if( $IsLinux ) { $sOutput = node $sPassGenFile $aMasterPassword.value $aResults.site $aResults.complexity }
 
@@ -157,11 +184,4 @@ if( $aResults.password -eq "#" ) {
     $sOutput = $aResults.password
 }
 
-if( $v ) { 
-    Write-Host `n$sOutput -NoNewline -ForegroundColor yellow
-    $aResults | Select-Object -Property site, account, password, complexity, comment | Out-Host }
-else {
-    Write-Host "Ok" -ForegroundColor Yellow }
-
-if( $IsWindows ) { Set-Clipboard $sOutput }
-if( $IsLinux ) { wl-copy $sOutput }
+Write-PasswordResult -oResult $aResults -sRenderedPassword $sOutput
