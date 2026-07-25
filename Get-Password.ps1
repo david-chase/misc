@@ -5,8 +5,9 @@
 
 Param
 (
-    [ Parameter( Mandatory = $true ) ] [string] $sSite,
-    [switch]$remove = $false,
+    [string] $site = "",
+    [switch]$d = $false,
+    [switch]$delete = $false,
     [switch]$update = $false,
     [switch]$query = $false,
     [switch]$q = $false,
@@ -16,6 +17,20 @@ Param
 Write-Host
 Write-Host ::: Get-Password ::: -ForegroundColor Cyan
 Write-Host
+
+# If nothing at all was passed on the command line, show help and exit
+if( $PSBoundParameters.Count -eq 0 ) {
+    Write-Host "Usage: Get-Password.ps1 -site <site> [-delete] [-d] [-update] [-query] [-q] [-v]"
+    Write-Host
+    Write-Host "  -site        Name of the site to look up (required)"
+    Write-Host "  -delete, -d  Remove the site's entry from the database"
+    Write-Host "  -update      Update the site's stored account, password, complexity, or comment"
+    Write-Host "  -query, -q   Case-insensitive partial match on site name; lists matches only"
+    Write-Host "  -v           Verbose mode; show the full record, including the rendered password, in table format"
+    Write-Host
+
+    Exit
+} # END if( $PSBoundParameters.Count -eq 0 )
 
 # Include functions and parse environment variables
 $sSharedFunctions = $env:SharedFunctions
@@ -34,18 +49,7 @@ function Write-PasswordResult {
     )
 
     if( $v ) {
-        Write-Host
-        Write-Host "Site       : " -ForegroundColor Yellow -NoNewline
-        Write-Host $oResult.site -ForegroundColor Green
-        Write-Host "Password   : " -ForegroundColor Yellow -NoNewline
-        Write-Host $oResult.password -ForegroundColor Green
-        Write-Host "Complexity : " -ForegroundColor Yellow -NoNewline
-        Write-Host $oResult.complexity -ForegroundColor Green
-        Write-Host "Comment    : " -ForegroundColor Yellow -NoNewline
-        Write-Host $oResult.comment -ForegroundColor Green
-        Write-Host "Rendered   : " -ForegroundColor Yellow -NoNewline
-        Write-Host $sRenderedPassword -ForegroundColor Green
-        Write-Host
+        $oResult | Select-Object -Property site, account, password, complexity, comment, @{ Name = "rendered"; Expression = { $sRenderedPassword } }
     } else {
         Write-Host "Ok" -ForegroundColor Yellow
     }
@@ -57,6 +61,8 @@ function Write-PasswordResult {
 
 # Do some command line parsing
 if( $q ) { $query = $true }
+if( $d ) { $remove = $true }
+if( $delete ) { $remove = $true }
 
 # We're starting by finding out the master password which is stored in the Secrets table
 $sCollection = "Secrets"
@@ -72,9 +78,9 @@ $sCollection = "Passwords"
 
 # If this is a -query we want to do a case-insensitive "LIKE" but an exact match if not a -query
 if( $query ) {
-    $sQuery = "SELECT * FROM " + $sCollection + " c WHERE CONTAINS( c.site, '" + $sSite + "', true )"
+    $sQuery = "SELECT * FROM " + $sCollection + " c WHERE CONTAINS( c.site, '" + $site + "', true )"
 } else {
-    $sQuery = "SELECT * FROM " + $sCollection + " c WHERE c.site = '" + $sSite + "'"
+    $sQuery = "SELECT * FROM " + $sCollection + " c WHERE c.site = '" + $site + "'"
 } # END if( $query )
 
 $aResults = Query-CosmosDb -EndPoint $sDBEndpoint -DBName $sDBName -Collection $sCollection -Key $sReadOnlyKey -Query $sQuery
@@ -103,19 +109,19 @@ if( $aResults.Count -eq 0 ) {
         $sJson = @"
 {
 	`"id`" : `"$([Guid]::NewGuid().ToString())`",
-	`"site`": `"$sSite`",
+	`"site`": `"$site`",
 	`"password`": `"$sPassword`",
 	`"complexity`": `"$sComplexity`",
 	`"comment`": `"$sComment`"
 }
 "@ # This can't be preceded by whitespace
         
-        $aResults = Post-CosmosDb -EndPoint $sDBEndpoint -DBName $sDBName -Collection $sCollection -Key $sReadWriteKey -DocumentBody $sJson -PartitionKey $sSite
+        $aResults = Post-CosmosDb -EndPoint $sDBEndpoint -DBName $sDBName -Collection $sCollection -Key $sReadWriteKey -DocumentBody $sJson -PartitionKey $site
 
         # Now output the password
 
-        if( $IsWindows ) { $sOutput = cscript.exe /nologo $sPassGenFile $aMasterPassword.value $sSite $sComplexity }
-        if( $IsLinux ) { $sOutput = node $sPassGenFile $aMasterPassword.value $sSite $sComplexity }
+        if( $IsWindows ) { $sOutput = cscript.exe /nologo $sPassGenFile $aMasterPassword.value $site $sComplexity }
+        if( $IsLinux ) { $sOutput = node $sPassGenFile $aMasterPassword.value $site $sComplexity }
 
         Write-PasswordResult -oResult $aResults -sRenderedPassword $sOutput
 
@@ -131,7 +137,7 @@ if( $remove ) {
     # User has asked to remove this entry
     if( ( Read-Host -Prompt "Remove site? [y/N]" ).ToUpper() -eq "Y" ) {
             
-        $aResults = Remove-CosmosDb -EndPoint $sDBEndpoint -DBName $sDBName -Collection $sCollection -Key $sReadWriteKey -PartitionKey $sSite -DocId $aResults.id
+        $aResults = Remove-CosmosDb -EndPoint $sDBEndpoint -DBName $sDBName -Collection $sCollection -Key $sReadWriteKey -PartitionKey $site -DocId $aResults.id
 
     } # if ( ( Read-Host -Prompt "Remove site? [y/N]" ).ToUpper() -eq "Y" )
 
@@ -141,7 +147,7 @@ if( $remove ) {
 
 if( $update ) {
     # User wants to update the password
-    Write-Host Updating record $sSite -ForegroundColor Cyan
+    Write-Host Updating record $site -ForegroundColor Cyan
     $sId = $aResults.id
     $sTempAccount = $aResults.account
     $sTempPassword = $aResults.password
@@ -160,7 +166,7 @@ if( $update ) {
     $sJson = @"
 {
 	`"id`" : `"$sId`",
-	`"site`": `"$sSite`",
+	`"site`": `"$site`",
 	`"account`": `"$sAccount`",
 	`"password`": `"$sPassword`",
     `"complexity`": `"$sComplexity`",
@@ -168,7 +174,7 @@ if( $update ) {
 }
 "@ # This can't be preceded by whitespace   
 
-    $aResults = Post-CosmosDb -EndPoint $sDBEndpoint -DBName $sDBName -Collection $sCollection -Key $sReadWriteKey -DocumentBody $sJson -PartitionKey $sSite
+    $aResults = Post-CosmosDb -EndPoint $sDBEndpoint -DBName $sDBName -Collection $sCollection -Key $sReadWriteKey -DocumentBody $sJson -PartitionKey $site
 
     Exit # Don't fall into the rest of the code.  Exit here.
 } # END if( $update )
