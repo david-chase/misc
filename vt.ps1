@@ -390,7 +390,7 @@ if ($toss) {
             $sTargetFile = $toss + $oChildItem.Name
 
             if (-not (Test-Path -Path $sTargetFile -PathType Leaf)) {
-                Write-Output [System.String]::Concat($oChildItem.Name, " -> ", $toss)
+                Write-Output ([System.String]::Concat($oChildItem.Name, " -> ", $toss))
 
                 if (-not $nowrite) { 
                     Move-Item -Path $sSourceFile -Destination $sTargetFile
@@ -424,7 +424,7 @@ if ($replace) {
                 $sTargetFile = [System.String]::Concat($oChildItem.Directory, [IO.Path]::DirectorySeparatorChar, $sNewShortName)
 
                 if (-not (Test-Path -Path $sTargetFile -PathType Leaf)) {
-                    Write-Output [System.String]::Concat($sSourceFile, " -> ", $sTargetFile)
+                    Write-Output ([System.String]::Concat($sSourceFile, " -> ", $sTargetFile))
                     if (-not $nowrite) { 
                         Rename-Item -Path $sSourceFile -NewName $sTargetFile
                         $iFilesProcessed++
@@ -441,7 +441,7 @@ if ($replace) {
                     $sTargetFile = [System.String]::Concat($oChildItem.Directory, [IO.Path]::DirectorySeparatorChar, $sNewShortName)
 
                     if (-not (Test-Path -Path $sTargetFile -PathType Leaf)) {
-                        Write-Output [System.String]::Concat($sSourceFile, " -> ", $sTargetFile)
+                        Write-Output ([System.String]::Concat($sSourceFile, " -> ", $sTargetFile))
                         if (-not $nowrite) { 
                             Rename-Item -Path $sSourceFile -NewName $sTargetFile
                             $iFilesProcessed++
@@ -563,7 +563,7 @@ if( $addtags ) {
                     Rename-Item -Path $sSourceFile -NewName $sTargetFile
                     $iFilesProcessed++
                 }
-                Write-Output [System.String]::Concat($sSourceFile, " -> ", $sTargetFile)
+                Write-Output ([System.String]::Concat($sSourceFile, " -> ", $sTargetFile))
             } else {
                 if (-not $quiet) { Write-Host "WARNING: File $sTargetFile already exists" -ForegroundColor Cyan }
             }
@@ -620,7 +620,7 @@ if( $deltags ) {
                     Rename-Item -Path $sSourceFile -NewName $sTargetFile
                     $iFilesProcessed++
                 }
-                Write-Output [System.String]::Concat($sSourceFile, " -> ", $sTargetFile)
+                Write-Output ([System.String]::Concat($sSourceFile, " -> ", $sTargetFile))
             } else {
                 if (-not $quiet) { Write-Host "WARNING: File $sTargetFile already exists" -ForegroundColor Cyan }
             }
@@ -658,7 +658,7 @@ if ($rewrite) {
                     Rename-Item -Path $sSourceFile -NewName $sTargetFile
                     $iFilesProcessed++
                 }
-                Write-Output [System.String]::Concat($sSourceFile, " -> ", $sTargetFile)
+                Write-Output ([System.String]::Concat($sSourceFile, " -> ", $sTargetFile))
             } else {
                 if (-not $quiet) { Write-Host "WARNING: File $sTargetFile already exists" -ForegroundColor Cyan }
             }			
@@ -714,7 +714,7 @@ if ($bulktag) {
             if ($bChangesMade) {
                 $sSourceFile = $sSourcePath + $sSourceFile
                 $sTargetFile = $sSourcePath + $sTargetFile + $oChildItem.Extension			
-                Write-Output [System.String]::Concat($sSourceFile, " -> ", $sTargetFile)
+                Write-Output ([System.String]::Concat($sSourceFile, " -> ", $sTargetFile))
 				 
                 if (-not $nowrite) { 
                     Rename-Item -Path $sSourceFile -NewName $sTargetFile 
@@ -762,7 +762,7 @@ if ($indexfolder) {
                     }
 
                     $sTargetFile += $oChildItem.Extension
-                    Write-Output [System.String]::Concat($sSourceFile, " -> ", $sTargetFile)
+                    Write-Output ([System.String]::Concat($sSourceFile, " -> ", $sTargetFile))
 
                     if (-not $nowrite) { 
                         Rename-Item -Path $sSourceFile -NewName $sTargetFile 
@@ -795,7 +795,7 @@ if ($tossindex) {
 
             if (Test-Path -Path $sTargetFile -PathType Container) {
                 $sTargetFile += $oChildItem.Name
-                Write-Output [System.String]::Concat($sSourceFile, " -> ", $sTargetFile)
+                Write-Output ([System.String]::Concat($sSourceFile, " -> ", $sTargetFile))
 
                 if (-not $nowrite) { 
                     if (-not (Test-Path -Path $sTargetFile -PathType Leaf)) {
@@ -845,7 +845,7 @@ if ($tagsfromfile) {
 
             foreach ($sTempTag in $aTargetTags) { $sTargetFile += $sTempTag }
             $sTargetFile += $oChildItem.Extension
-            Write-Output [System.String]::Concat($sSourceFile, " -> ", $sTargetFile)
+            Write-Output ([System.String]::Concat($sSourceFile, " -> ", $sTargetFile))
 
             if (-not $nowrite) { 
                 Move-Item -Path $sSourceFile -Destination $sTargetFile 
@@ -936,7 +936,7 @@ if ($tagsfromexif) {
                     foreach ($sTag in $oChildItem.Tags) { $sTargetFile += $sTag }
                     $sTargetFile = [System.String]::Concat($sTargetFile, $oChildItem.Extension)
 
-                    Write-Output [System.String]::Concat($sSourceFile, " -> ", $sTargetFile)
+                    Write-Output ([System.String]::Concat($sSourceFile, " -> ", $sTargetFile))
 
                     if (-not $nowrite) { 
                         Move-Item -Path $sSourceFile -Destination $sTargetFile 
