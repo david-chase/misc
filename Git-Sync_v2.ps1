@@ -4,7 +4,7 @@ param (
 )
 
 Write-Host ""
-Write-Host " ::: Git-Sync v3 :::" -ForegroundColor Cyan
+Write-Host " ::: Git-Sync v3 ::: " -ForegroundColor Cyan
 Write-Host ""
 
 # Remember original directory
