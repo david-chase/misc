@@ -1,10 +1,12 @@
 param (
     [string] $RepoPath = (Get-Location),
-    [switch] $All
+    [switch] $All,
+    [Alias("m")]
+    [string] $Message
 )
 
 Write-Host ""
-Write-Host " ::: Git-Sync v3 ::: " -ForegroundColor Cyan
+Write-Host " ::: Git-Sync v3 :::" -ForegroundColor Cyan
 Write-Host ""
 
 # Remember original directory
@@ -182,8 +184,18 @@ function Sync-GitRepo {
         $sStatus = git status --porcelain
         if ( $sStatus ) {
             Write-Host "Uncommitted changes detected committing changes" -ForegroundColor Green
+
+            $sCommitMessage = $Message
+            if ( [string]::IsNullOrWhiteSpace( $sCommitMessage ) -and [Environment]::UserInteractive ) {
+                $sCommitMessage = Read-Host "Enter commit message for $Path (leave blank to use timestamp)"
+            }
+            if ( [string]::IsNullOrWhiteSpace( $sCommitMessage ) ) {
+                $sTimestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                $sCommitMessage = "Auto-sync commit on $sTimestamp"
+            }
+
             git add -A
-            git commit -m "Automated commit by Git Sync Script"
+            git commit -m $sCommitMessage
             if ( $LASTEXITCODE -ne 0 ) {
                 Write-Error "Git commit failed at $Path"
                 Add-Log -Tags "#git#sync" -Text "Git commit failed at $Path"
