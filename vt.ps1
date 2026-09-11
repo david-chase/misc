@@ -597,26 +597,29 @@ if( $deltags ) {
     } #if
 	
     foreach ($oChildItem in $aFiles) {
-        $sSourcePath = [System.String]::Concat($oChildItem.Directory, [IO.Path]::DirectorySeparatorChar)
-        $sSourceFile = $oChildItem.Name
-        $sTargetFile = $oChildItem.Name
         $bTempFlag = $false
-	
+
         foreach ($sTempTag in $aDelTags) {
-            if (($oChildItem.Tags.Count -gt 0) -and ($oChildItem.Tags.Contains($sTempTag))) {
-                while ($sTargetFile.IndexOf($sTempTag) -ge 0) {
-                    $bTempFlag = $true
-                    $sTargetFile = $sTargetFile.Remove($sTargetFile.IndexOf($sTempTag), $sTempTag.Length)
-                }
+            if ($oChildItem.Tags.Contains($sTempTag)) {
+                $oChildItem.Tags.Remove($sTempTag) | Out-Null
+                $bTempFlag = $true
             }
         }
-		
+
         if ($bTempFlag) {
-            $sSourceFile = $sSourcePath + $sSourceFile
-            $sTargetFile = $sSourcePath + $sTargetFile
-			
+            $sBaseOnly = fGetBaseName($oChildItem.Name)
+            $sTargetFile = [System.String]::Concat($oChildItem.Directory, [IO.Path]::DirectorySeparatorChar, $sBaseOnly)
+
+            $oChildItem.Tags.Sort()
+            if ($oChildItem.Tags.Count -gt 0) {
+                $sTargetFile += " "
+                foreach ($sTempTag in $oChildItem.Tags) { $sTargetFile += $sTempTag }
+            }
+            $sTargetFile = [System.String]::Concat($sTargetFile, $oChildItem.Extension)
+            $sSourceFile = $oChildItem.Qualified
+
             if (-not (Test-Path -Path $sTargetFile -PathType Leaf)) {
-                if (-not $nowrite) { 
+                if (-not $nowrite) {
                     Rename-Item -Path $sSourceFile -NewName $sTargetFile
                     $iFilesProcessed++
                 }
